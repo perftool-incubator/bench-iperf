@@ -1,0 +1,241 @@
+#!/usr/bin/perl
+## -*- mode: perl; indent-tabs-mode: nil; perl-indent-level: 4 -*-
+## vim: autoindent tabstop=4 shiftwidth=4 expandtab softtabstop=4 filetype=perl
+
+use strict;
+use warnings;
+use JSON::XS;
+use Data::Dumper;
+use Getopt::Long;
+BEGIN {
+    if (!(exists $ENV{'TOOLBOX_HOME'} && -d "$ENV{'TOOLBOX_HOME'}/perl")) {
+    print "This script requires libraries that are provided by the toolbox project.\n";
+    print "Toolbox can be acquired from https://github.com/perftool-incubator/toolbox and\n";
+    print "then use 'export TOOLBOX_HOME=/path/to/toolbox' so that it can be located.\n";
+    exit 1;
+    }
+}
+use lib "$ENV{'TOOLBOX_HOME'}/perl";
+use toolbox::json;
+use toolbox::metrics;
+
+my $protocol;
+my $remotehost;
+my $ignore;
+my $primary_metric = 'rx-Gbps';
+my $result_file = "iperf-client-result.txt";
+my %names = ('cmd' => 'write');
+my %desc;
+my %s;
+my $ts;
+my %times;
+use constant SEC_TO_MSEC => 1000;
+
+my $debug;
+
+sub debug_print {
+    if ( defined $debug ) {
+        print "$_[0]";
+    }
+}
+
+GetOptions ("remotehost=s" => \$remotehost,
+            "length=s" => \$ignore,
+            "passthru=s" => \$ignore,
+            "protocol=s" => \$protocol,
+            "time=i" => \$ignore,
+            "bitrate=i" => \$ignore,
+            "ifname=s" => \$ignore,
+            "cpu-pin=s" => \$ignore,
+            );
+#
+# Extract begin/end timestamps recorded by the iperf run.
+#
+foreach my $i (qw(begin end)) {
+    my $file = $i . ".txt";
+    open(FH, $file) || die "Could not open " . $file;
+    $times{$i} = int (<FH> * SEC_TO_MSEC);
+    close FH; 
+}
+
+
+#
+# process_proto - supports TCP and UDP.
+#   UDP stats:  tx-Gbps, rx-Gbps, rx-lost-per-sec, rx-pps
+#   TCP stats:  tx-Gbps, tx-retry-per-sec, rx-Gbps
+# Note: if the user flips direction with "--reverse" CLI option, display context is still correct.
+#       b/c we derive direction from outputs, not from "client" vs "server" clue.
+#
+sub process_proto {
+    my $bitrate;
+    my $interval;
+    print "process_proto: enter\n";
+
+    (my $rc, my $fh) = open_read_text_file($result_file);
+    if ($rc == 0 and defined $fh) {
+        $ts=$times{'begin'};
+
+        while (<$fh>) {
+            if ( /sender/ or /receiver/ ) {
+                # No use for entries in the summary section, after "- - - - "
+                debug_print("Skip line: $_");
+                $ts=$times{'begin'};    # Reset because we are about to process the Server section
+                next;
+            }
+    
+            if ( $protocol eq "udp") {
+                # Its output is as follows:
+                #   [ ID] Interval           Transfer     Bitrate         Total Datagrams
+                #   [  5]   0.00-1.00   sec   596 MBytes  5.00 Gbits/sec  38144
+                #   < more similar entries >
+                #    - - - - - - - - - - - - - - - - - - - - - - - - -
+                #   [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total  Datagrams
+                #   [  5]   0.00-30.00  sec  17.5 GBytes  5.00 Gbits/sec  0.000 ms  0/1144389   (0%)      sender
+                #   [  5]   0.00-30.00  sec  17.5 GBytes  5.00 Gbits/sec  0.012 ms  148/1144389 (0.013%)  receiver
+                #
+                #  Server output:
+                #
+                #   [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+                #   [  5]   0.00-1.00   sec   596 MBytes  5.00 Gbits/sec  0.012 ms  8/38128 (0.021%)
+                #   < more >
+                #   - - - - - - - - - - - - - - - - - - - - - - - - -
+                #   [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+                #   [  5]   0.00-30.00  sec  17.5 GBytes  5.00 Gbits/sec  0.012 ms  148/1144389 (0.013%)  receiver
+
+                if ( /sec/ ) {
+                    debug_print("Proc line: $_");
+                    my $lost_total;
+                    my @columns = split(/\s+/, $_);
+
+                    if ( not defined $interval ) {
+                        # passthru CLI option "--interval nn" can change interval. So compute it.
+                        my @tuble = split /-/, $columns[2];
+                        my $start = $tuble[0];
+                        my $end = $tuble[1];
+                        my $sec_delta = $end - $start;
+                        $interval = $sec_delta*SEC_TO_MSEC;
+                        debug_print("interval=$interval\n"); 
+                    }
+
+                    $bitrate = $columns[6];
+                    debug_print("bitrate $bitrate\n");
+
+                    my $num_fields = scalar @columns;
+                    if ( $num_fields > 10 ) {
+                        $lost_total = $columns[10];
+                        my @tuble = split /\//, $lost_total;
+                        my $lost = $tuble[0];
+                        my $total = $tuble[1];
+                        debug_print("Lost:$lost Total:$total\n");
+
+                        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'rx-lost-per-sec');
+                        %s = ('begin' => int $ts, 'end' => int ($ts + $interval -1), 'value' =>  $lost);
+                        log_sample("0", \%desc, \%names, \%s);
+
+                        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'rx-pps');
+                        %s = ('begin' => int $ts, 'end' => int ($ts + $interval -1), 'value' => $total);
+
+                        log_sample("0", \%desc, \%names, \%s);
+
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-Gbps');
+                    } else {
+                        # no "Lost/Total" column implies tx section
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'tx-Gbps');
+                    }
+
+                    # log rx "bitrate" sample
+                    %s = ('begin' => int $ts, 'end' => int ($ts + $interval -1), 'value' => $bitrate);
+                    log_sample("0", \%desc, \%names, \%s);
+                    $ts=$ts+$interval;
+                } else {
+                    debug_print("Skip line: $_");
+                }
+            } else {
+                # TCP outputs look as follows:
+                #	[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+                #	[  5]   0.00-1.00   sec   596 MBytes  5.00 Gbits/sec    0   428 KBytes
+                #	 < more>
+                #	[ ID] Interval           Transfer     Bitrate         Retr
+                #	[  5]   0.00-30.00  sec  17.5 GBytes  5.00 Gbits/sec    0             sender
+                #	[  5]   0.00-30.00  sec  17.5 GBytes  5.00 Gbits/sec                  receiver
+                #	
+                #	Server output:
+                #	[ ID] Interval           Transfer     Bitrate
+                #	[  5]   0.00-1.00   sec   596 MBytes  5.00 Gbits/sec
+                #	< more >
+                #	- - - - - - - - - - - - - - - - - - - - - - - - -
+                #	[ ID] Interval           Transfer     Bitrate
+                #	[  5]   0.00-30.00  sec  17.5 GBytes  5.00 Gbits/sec                  receiver
+
+                if ( /sec/ ) {
+                    debug_print("Proc line: $_"); 
+                    my $retry;
+                    my @columns = split(/\s+/, $_);
+
+                    if ( not defined $interval ) {
+                        # passthru CLI option "--interval nn" can change interval. So compute it.
+                        my @tuble = split /-/, $columns[2];
+                        my $start = $tuble[0];
+                        my $end = $tuble[1];
+                        my $sec_delta = $end - $start;
+                        $interval = $sec_delta*SEC_TO_MSEC;
+                        debug_print("interval=$interval\n");
+                    }
+
+                    $bitrate = $columns[6];
+                    debug_print("bitrate $bitrate\n"); 
+
+                    my $num_fields = scalar @columns;
+                    debug_print("num_fields: $num_fields\n"); 
+                    if ( $num_fields > 8 ) {
+                        $retry = $columns[8];
+                        # log "Retr" sample
+                        debug_print("Retry: $retry\n"); 
+
+                        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'tx-retry-per-sec');
+                        %s = ('begin' => int $ts, 'end' => int ($ts + $interval -1), 'value' =>  $retry);
+                        log_sample("0", \%desc, \%names, \%s);
+
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'tx-Gbps');
+                    } else {
+                        # no "Retr" column implies rx side
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-Gbps');
+                    }
+                    # log rx "bitrate" sample
+                    %s = ('begin' => int $ts, 'end' => int ($ts + $interval -1), 'value' => $bitrate);
+
+                    log_sample("0", \%desc, \%names, \%s);
+                    $ts=$ts+$interval;
+                } else {
+                    debug_print("Skip line: $_");
+                }
+            } # TCP
+        } # while
+
+        close($fh);
+        my $metric_data_name = finish_samples();
+        # Associate the metrics with a benchmark-period (in this case "measurement")
+        my %sample;
+        my @periods;
+        my %period = ('name' => 'measurement');
+        $sample{'rickshaw-bench-metric'}{'schema'}{'version'} = "2021.04.12";
+        my @metric_files = ( $metric_data_name );
+        $period{'metric-files'} = \@metric_files;
+        push(@periods, \%period);
+        $sample{'periods'} = \@periods;
+        $sample{'primary-period'} = 'measurement';
+        $sample{'primary-metric'} = $primary_metric;
+        $rc = put_json_file("post-process-data.json", \%sample);
+        if ($rc > 0) {
+            printf "iperf-post-process(): Could not write file post-process-data.json\n";
+            exit 1
+        }
+    } else {
+        printf "iperf-post-process(): open_read_text_file() failed with return code %d for file %s\n", $rc, $result_file;
+        printf "Is the current directory for a iperf server (no result file)?\n";
+    }
+} 
+
+process_proto();
+
+# EOF

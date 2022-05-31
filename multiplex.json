@@ -1,0 +1,40 @@
+{
+    "presets": {
+        "basic" : [
+	    { "arg": "time", "vals": ["60"] },
+	    { "arg": "protocol", "vals": ["tcp"] }
+        ]
+    },
+    "validations": {
+        "protocols": {
+            "description": "all possible protocols",
+            "args": [ "protocol" ],
+            "vals": "^tcp$|^udp$"
+        },
+        "positive_integer": {
+            "description": "a whole number greater than 0",
+            "args": [ "length", "time","bitrate" ],
+            "vals": "[1-9][0-9]*"
+        },
+        "host-or-ip": {
+            "description" : "a hostname or IP address",
+            "args": [ "remotehost" ],
+            "vals": ".+"
+        },
+	    "non-empty-string": {
+	        "description": "any non-empty string",
+	        "args": [ "ifname" ],
+	        "vals": "^.+$"
+        },
+	    "passthru": {
+	        "description": "comma separated list",
+	        "args": [ "passthru" ],
+	        "vals": "^.+$"
+	    },
+	    "cpu-pinning": {
+	        "description": "valid cpu pinning modes",
+	        "args": [ "cpu-pin" ],
+	        "vals": "^numa$"
+	    }
+    }
+}
