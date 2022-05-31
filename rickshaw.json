@@ -1,0 +1,47 @@
+{
+    "rickshaw-benchmark": {
+        "schema": {
+            "version": "2020.05.18"
+        }
+    },
+    "benchmark": "iperf",
+    "controller": {
+        "post-script": "%bench-dir%iperf-post-process"
+    },
+    "client": {
+        "files-from-controller": [
+            {
+                "src": "%bench-dir%/iperf-base",
+                "dest": "/usr/bin/"
+            },
+            {
+                "src": "%bench-dir%/iperf-get-runtime",
+                "dest": "/usr/bin/"
+            },
+            {
+                "src": "%bench-dir%/iperf-client",
+                "dest": "/usr/bin/"
+            }
+        ],
+        "runtime": "iperf-get-runtime",
+        "start": "iperf-client"
+    },
+    "server": {
+        "files-from-controller": [
+            {
+                "src": "%bench-dir%/iperf-base",
+                "dest": "/usr/bin/"
+            },
+            {
+                "src": "%bench-dir%/iperf-server-start",
+                "dest": "/usr/bin/"
+            },
+            {
+                "src": "%bench-dir%/iperf-server-stop",
+                "dest": "/usr/bin/"
+            }
+        ],
+        "start": "iperf-server-start",
+        "stop": "iperf-server-stop"
+    }
+}
