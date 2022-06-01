@@ -22,12 +22,16 @@ use toolbox::metrics;
 my $protocol;
 my $remotehost;
 my $ignore;
-my $primary_metric = 'rx-Gbps';
+    # rx throughput is our primary_metric, but the unit is configureable 
+    # by the "passthru" option which we donot know ahead of time.
+    # So we will init primary_metric when we examine the outputs.
+my $primary_metric;
 my $result_file = "iperf-client-result.txt";
 my %names = ('cmd' => 'write');
 my %desc;
 my %s;
 my $ts;
+my $ts_end;
 my %times;
 use constant SEC_TO_MSEC => 1000;
 
@@ -44,7 +48,7 @@ GetOptions ("remotehost=s" => \$remotehost,
             "passthru=s" => \$ignore,
             "protocol=s" => \$protocol,
             "time=i" => \$ignore,
-            "bitrate=i" => \$ignore,
+            "bitrate=s" => \$ignore,
             "ifname=s" => \$ignore,
             "cpu-pin=s" => \$ignore,
             );
@@ -58,18 +62,21 @@ foreach my $i (qw(begin end)) {
     close FH; 
 }
 
-
 #
 # process_proto - supports TCP and UDP.
-#   UDP stats:  tx-Gbps, rx-Gbps, rx-lost-per-sec, rx-pps
-#   TCP stats:  tx-Gbps, tx-retry-per-sec, rx-Gbps
-# Note: if the user flips direction with "--reverse" CLI option, display context is still correct.
-#       b/c we derive direction from outputs, not from "client" vs "server" clue.
+#   UDP stats:  tx-UNIT/s, rx-UNITs, rx-lost/sec, rx-pps
+#   TCP stats:  tx-UNIT/s, tx-retry/s, rx-Gbps
+#   Where UNIT: Gbits, Mbits, Kbits, GBytes, Mbytes, Kbytes per CLI "--format" option.
+# Note: if the user flips direction with "--reverse" option, the display context is still 
+#       correct b/c we derive direction from outputs, not from "client" vs "server" clue.
+# Note: the unit(s) are influenced by "--format" so we need to treat them dynamically.
+# Note: the interval of time-series is configurable by "--interval" option. So we compute it.
 #
 sub process_proto {
     my $bitrate;
     my $interval;
     print "process_proto: enter\n";
+    my $rateunit='none';
 
     (my $rc, my $fh) = open_read_text_file($result_file);
     if ($rc == 0 and defined $fh) {
@@ -80,6 +87,7 @@ sub process_proto {
                 # No use for entries in the summary section, after "- - - - "
                 debug_print("Skip line: $_");
                 $ts=$times{'begin'};    # Reset because we are about to process the Server section
+                $rateunit = 'none';     # reset rate unit can change in the Server section.
                 next;
             }
     
@@ -107,19 +115,29 @@ sub process_proto {
                     my $lost_total;
                     my @columns = split(/\s+/, $_);
 
-                    if ( not defined $interval ) {
-                        # passthru CLI option "--interval nn" can change interval. So compute it.
-                        my @tuble = split /-/, $columns[2];
-                        my $start = $tuble[0];
-                        my $end = $tuble[1];
-                        my $sec_delta = $end - $start;
-                        $interval = $sec_delta*SEC_TO_MSEC;
-                        debug_print("interval=$interval\n"); 
+                    # passthru CLI option "--interval nn" can change interval. So compute it.
+                    my @tuble = split /-/, $columns[2];
+                    my $start = $tuble[0];
+                    my $end = $tuble[1];
+                    my $sec_delta = $end - $start;
+
+                    if ( $sec_delta == 0 )  {
+                        # A nuissance. The last entry could be odd as below - Throw it away
+                        # [  5]  10.00-10.00  sec   352 KBytes  7.99 Gbits/sec  0.012 ms  0/22 (0%)
+                        next;
                     }
+
+                    $interval = $sec_delta*SEC_TO_MSEC;
+                    debug_print("interval=$interval\n"); 
 
                     $bitrate = $columns[6];
                     debug_print("bitrate $bitrate\n");
 
+                    if ( $rateunit == 'none' ) {
+                        $rateunit = $columns[7];
+                    }
+
+                    $ts_end=$ts + $interval -1;
                     my $num_fields = scalar @columns;
                     if ( $num_fields > 10 ) {
                         $lost_total = $columns[10];
@@ -128,23 +146,29 @@ sub process_proto {
                         my $total = $tuble[1];
                         debug_print("Lost:$lost Total:$total\n");
 
-                        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'rx-lost-per-sec');
-                        %s = ('begin' => int $ts, 'end' => int ($ts + $interval -1), 'value' =>  $lost);
+                        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'rx-lost/sec');
+                        %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' =>  $lost);
                         log_sample("0", \%desc, \%names, \%s);
 
                         %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'rx-pps');
-                        %s = ('begin' => int $ts, 'end' => int ($ts + $interval -1), 'value' => $total);
-
+                        %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => $total);
                         log_sample("0", \%desc, \%names, \%s);
 
-                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-Gbps');
+                        if ( ! defined  $primary_metric ) {
+                            # rx throughput is our primary_metric.
+                            $primary_metric = "rx-$rateunit";
+                            debug_print("primary_metric $primary_metric\n");
+                        }
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => $primary_metric);
+
                     } else {
                         # no "Lost/Total" column implies tx section
-                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'tx-Gbps');
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => "tx-$rateunit");
                     }
 
                     # log rx "bitrate" sample
-                    %s = ('begin' => int $ts, 'end' => int ($ts + $interval -1), 'value' => $bitrate);
+                    %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => $bitrate);
+                    print ("begin: int $ts, end: int $ts_end\n");
                     log_sample("0", \%desc, \%names, \%s);
                     $ts=$ts+$interval;
                 } else {
@@ -172,37 +196,49 @@ sub process_proto {
                     my $retry;
                     my @columns = split(/\s+/, $_);
 
-                    if ( not defined $interval ) {
-                        # passthru CLI option "--interval nn" can change interval. So compute it.
-                        my @tuble = split /-/, $columns[2];
-                        my $start = $tuble[0];
-                        my $end = $tuble[1];
-                        my $sec_delta = $end - $start;
-                        $interval = $sec_delta*SEC_TO_MSEC;
-                        debug_print("interval=$interval\n");
+                    # passthru CLI option "--interval nn" can change interval. So compute it.
+                    my @tuble = split /-/, $columns[2];
+                    my $start = $tuble[0];
+                    my $end = $tuble[1];
+                    my $sec_delta = $end - $start;
+                    $interval = $sec_delta*SEC_TO_MSEC;
+                    debug_print("interval=$interval\n");
+                    
+                    if ( $sec_delta == 0 )  {
+                        # Exception. Last entry could be odd as below. Throw it away
+                        # [  5]  10.00-10.00  sec   352 KBytes  7.99 Gbits/sec  0.012 ms  0/22 (0%)
+                        next;
                     }
-
+               
                     $bitrate = $columns[6];
                     debug_print("bitrate $bitrate\n"); 
-
+                    if ( $rateunit == 'none' ) {
+                        $rateunit = $columns[7];
+                    }
                     my $num_fields = scalar @columns;
                     debug_print("num_fields: $num_fields\n"); 
+                    $ts_end=$ts + $interval -1;
                     if ( $num_fields > 8 ) {
                         $retry = $columns[8];
                         # log "Retr" sample
                         debug_print("Retry: $retry\n"); 
 
-                        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'tx-retry-per-sec');
-                        %s = ('begin' => int $ts, 'end' => int ($ts + $interval -1), 'value' =>  $retry);
+                        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'tx-retry/sec');
+                        %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' =>  $retry);
                         log_sample("0", \%desc, \%names, \%s);
 
-                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'tx-Gbps');
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => "tx-$rateunit");
                     } else {
                         # no "Retr" column implies rx side
-                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-Gbps');
+                        if ( ! defined  $primary_metric ) {
+                            $primary_metric = "rx-$rateunit";
+                            debug_print("primary_metric $primary_metric\n");
+                        }
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => $primary_metric);
+
                     }
                     # log rx "bitrate" sample
-                    %s = ('begin' => int $ts, 'end' => int ($ts + $interval -1), 'value' => $bitrate);
+                    %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => $bitrate);
 
                     log_sample("0", \%desc, \%names, \%s);
                     $ts=$ts+$interval;

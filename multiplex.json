@@ -13,8 +13,13 @@
         },
         "positive_integer": {
             "description": "a whole number greater than 0",
-            "args": [ "length", "time","bitrate" ],
+            "args": [ "length", "time" ],
             "vals": "[1-9][0-9]*"
+        },
+        "bitrate": {
+            "description": "number (can be 0) optionally followed by a letter",
+            "args": [ "bitrate" ],
+            "vals": "[0-9]*[GMKgmk]*"
         },
         "host-or-ip": {
             "description" : "a hostname or IP address",
