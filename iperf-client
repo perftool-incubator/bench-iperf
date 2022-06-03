@@ -9,6 +9,7 @@ validate_label
 validate_sw_prereqs jq ss iperf3 getopt ip
 
 # defaults
+ifname=""
 protocol=""
 length=""
 time=10
@@ -20,7 +21,7 @@ cpu_pin=""
 pt_opts=""
 
 echo "opts before: $@"
-longopts="protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:"
+longopts="ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error "Unrecognized option specified"
@@ -29,6 +30,12 @@ eval set -- "$opts";
 echo "opts after: $@"
 while true; do
     case "$1" in
+        --ifname)
+            shift;
+            ifname="$1"
+            echo "ifname=$ifname"
+            shift
+            ;;
 	    --cpu-pin)
 	        shift;
 	        cpu_pin=$1
