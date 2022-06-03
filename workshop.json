@@ -8,11 +8,23 @@
 	    {
 	        "name": "default",
 	        "requirements": [
-                "iperf_src"
+                "iperf_src",
+                "debug"
 	        ]
 	    }
     ],
     "requirements": [
+        {
+            "name": "debug",
+            "type": "distro",
+            "distro_info": {
+                "packages": [
+                    "ethtool",
+                    "net-tools",
+                    "tcpdump"
+                ]
+            }
+        },
 	    {
 	        "name": "iperf_src",
 	        "type": "source",
