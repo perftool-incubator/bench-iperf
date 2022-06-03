@@ -168,8 +168,25 @@ case "${cpu_pin}" in
 	;;
 esac
 
+options="--format g -c $remotehost -p $control_port $protocol $length --get-server-output"
+#options+=" --cport $data_port"
+# strip ',' from the passthru options 
 passthru_opts=$(echo "$pt_opts" | sed 's/,/ /g')
-options="--format g -c $remotehost -p $control_port --cport $data_port -t $time $protocol $length $passthru_opts --get-server-output"
+
+options+=" $passthru_opts"
+
+time_opt="-t $time"
+# If passthru has --time or -t, let it override our $time value
+for p in ${passthru_opts}; do
+    if echo "$p" | grep -Eq '\-t[0-9]|\-\-time'; then
+        echo "passthru $p overrides time=$time"
+        time_opt=""
+        break
+    fi
+done
+
+options+=" $time_opt"
+
 if [ $bit_rate != None ]; then
     options+=" --bitrate $bit_rate"
 fi
