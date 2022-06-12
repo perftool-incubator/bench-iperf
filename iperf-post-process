@@ -43,6 +43,8 @@ sub debug_print {
     }
 }
 
+print "@ARGV";
+
 GetOptions ("remotehost=s" => \$remotehost,
             "length=s" => \$ignore,
             "passthru=s" => \$ignore,
@@ -91,6 +93,10 @@ sub process_proto {
                 next;
             }
     
+            # skip this special entry - HN it reports OOO
+            if ( /SUM/ ) {
+                next;
+            }
             if ( $protocol eq "udp") {
                 # Its output is as follows:
                 #   [ ID] Interval           Transfer     Bitrate         Total Datagrams
@@ -110,7 +116,7 @@ sub process_proto {
                 #   [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
                 #   [  5]   0.00-30.00  sec  17.5 GBytes  5.00 Gbits/sec  0.012 ms  148/1144389 (0.013%)  receiver
 
-                if ( /sec/ ) {
+                if ( / sec / ) {
                     debug_print("Proc line: $_");
                     my $lost_total;
                     my @columns = split(/\s+/, $_);
@@ -133,7 +139,7 @@ sub process_proto {
                     $bitrate = $columns[6];
                     debug_print("bitrate $bitrate\n");
 
-                    if ( $rateunit == 'none' ) {
+                    if ( $rateunit eq 'none' ) {
                         $rateunit = $columns[7];
                     }
 
@@ -212,7 +218,7 @@ sub process_proto {
                
                     $bitrate = $columns[6];
                     debug_print("bitrate $bitrate\n"); 
-                    if ( $rateunit == 'none' ) {
+                    if ( $rateunit eq 'none' ) {
                         $rateunit = $columns[7];
                     }
                     my $num_fields = scalar @columns;
