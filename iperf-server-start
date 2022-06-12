@@ -62,6 +62,8 @@ case "${cpu_pin}" in
 	;;
 esac
 
+ uname -a
+
 # A benchmark server can provide both an IP and ports to the client.
 # The server must package these in a JSON, which will be sent to
 # the endpoint.  The endpoint may make adjustments to the IP and
