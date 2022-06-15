@@ -255,7 +255,7 @@ sub process_proto {
         } # while
 
         close($fh);
-        my $metric_data_name = finish_samples();
+        my $metric_data_name = finish_samples(1);
         # Associate the metrics with a benchmark-period (in this case "measurement")
         my %sample;
         my @periods;
