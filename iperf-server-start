@@ -162,7 +162,7 @@ esac
 
 
 passthru_opts=$(echo "$pt_opts" | sed 's/,/ /g')
-cmd="${cpu_pin_cmd} iperf3 -s --format g -p $control_port $passthru_opts"
+cmd="${cpu_pin_cmd} iperf3 -s --format k -p $control_port $passthru_opts"
 echo "going to run: $cmd"
 export MALLOC_CHECK_=2
 $cmd 2>&1 >iperf-server-result.txt &

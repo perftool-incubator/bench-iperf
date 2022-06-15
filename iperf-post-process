@@ -139,8 +139,21 @@ sub process_proto {
                     $bitrate = $columns[6];
                     debug_print("bitrate $bitrate\n");
 
-                    if ( $rateunit eq 'none' ) {
-                        $rateunit = $columns[7];
+                    $rateunit = $columns[7];
+
+                    # Always convert to common rate unit so results can be compared regardless of --format
+                    my $rate_divisor = 1;
+                    if ( $rateunit eq "Kbits/sec" ) {
+                        $rateunit = "Gbps";
+                        $bitrate /= 1000000;
+                    } elsif ( $rateunit eq "Mbits/sec" ) {
+                        $rateunit = "Gbps";
+                        $bitrate /= 1000;
+                    } elsif ( $rateunit eq "Gbits/sec" ) {
+                        $rateunit = "Gbps";
+                    } else {
+                        printf "Error: Did not recongnize rate unit: %s\n", $rateunit;
+                        exit 1;
                     }
 
                     $ts_end=$ts + $interval -1;
@@ -152,11 +165,11 @@ sub process_proto {
                         my $total = $tuble[1];
                         debug_print("Lost:$lost Total:$total\n");
 
-                        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'rx-lost/sec');
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-lost/sec');
                         %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' =>  $lost);
                         log_sample("0", \%desc, \%names, \%s);
 
-                        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'rx-pps');
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-pps');
                         %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => $total);
                         log_sample("0", \%desc, \%names, \%s);
 
@@ -218,8 +231,21 @@ sub process_proto {
                
                     $bitrate = $columns[6];
                     debug_print("bitrate $bitrate\n"); 
-                    if ( $rateunit eq 'none' ) {
-                        $rateunit = $columns[7];
+                    $rateunit = $columns[7];
+
+                    # Always convert to common rate unit so results can be compared regardless of --format
+                    my $rate_divisor = 1;
+                    if ( $rateunit eq "Kbits/sec" ) {
+                        $rateunit = "Gbps";
+                        $bitrate /= 1000000;
+                    } elsif ( $rateunit eq "Mbits/sec" ) {
+                        $rateunit = "Gbps";
+                        $bitrate /= 1000;
+                    } elsif ( $rateunit eq "Gbits/sec" ) {
+                        $rateunit = "Gbps";
+                    } else {
+                        printf "Error: Did not recongnize rate unit: %s\n", $rateunit;
+                        exit 1;
                     }
                     my $num_fields = scalar @columns;
                     debug_print("num_fields: $num_fields\n"); 
