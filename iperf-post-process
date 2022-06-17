@@ -43,7 +43,7 @@ sub debug_print {
     }
 }
 
-print "@ARGV";
+print "@ARGV\n";
 
 GetOptions ("remotehost=s" => \$remotehost,
             "length=s" => \$ignore,
