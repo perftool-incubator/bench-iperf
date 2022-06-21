@@ -76,6 +76,7 @@ foreach my $i (qw(begin end)) {
 #
 sub process_proto {
     my $bitrate;
+    my $bitrate_div;
     my $interval;
     print "process_proto: enter\n";
     my $rateunit='none';
@@ -141,6 +142,16 @@ sub process_proto {
 
                     if ( $rateunit eq 'none' ) {
                         $rateunit = $columns[7];
+                        if ( $rateunit eq "Kbits/sec" ) {
+                            $bitrate_div = 1000000;
+                        } elsif ( $rateunit eq "Mbits/sec" ) {
+                            $bitrate_div = 1000;
+                        } elsif ( $rateunit eq "Gbits/sec" ) {
+                            $bitrate_div = 1;
+                        } else {
+                            printf "Error: Did not recongnize rate unit: %s\n", $rateunit;
+                            exit 1;
+                        }
                     }
 
                     $ts_end=$ts + $interval -1;
@@ -152,28 +163,28 @@ sub process_proto {
                         my $total = $tuble[1];
                         debug_print("Lost:$lost Total:$total\n");
 
-                        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'rx-lost/sec');
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-lost/sec');
                         %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' =>  $lost);
                         log_sample("0", \%desc, \%names, \%s);
 
-                        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'rx-pps');
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-pps');
                         %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => $total);
                         log_sample("0", \%desc, \%names, \%s);
 
                         if ( ! defined  $primary_metric ) {
                             # rx throughput is our primary_metric.
-                            $primary_metric = "rx-$rateunit";
+                            $primary_metric = "rx-Gbps";
                             debug_print("primary_metric $primary_metric\n");
                         }
                         %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => $primary_metric);
 
                     } else {
                         # no "Lost/Total" column implies tx section
-                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => "tx-$rateunit");
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => "tx-Gbps");
                     }
 
                     # log rx "bitrate" sample
-                    %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => $bitrate);
+                    %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => ($bitrate / $bitrate_div));
                     print ("begin: int $ts, end: int $ts_end\n");
                     log_sample("0", \%desc, \%names, \%s);
                     $ts=$ts+$interval;
@@ -197,7 +208,7 @@ sub process_proto {
                 #	[ ID] Interval           Transfer     Bitrate
                 #	[  5]   0.00-30.00  sec  17.5 GBytes  5.00 Gbits/sec                  receiver
 
-                if ( /sec/ ) {
+                if ( /sec\s/ ) {
                     debug_print("Proc line: $_"); 
                     my $retry;
                     my @columns = split(/\s+/, $_);
@@ -218,9 +229,21 @@ sub process_proto {
                
                     $bitrate = $columns[6];
                     debug_print("bitrate $bitrate\n"); 
+
                     if ( $rateunit eq 'none' ) {
                         $rateunit = $columns[7];
+                        if ( $rateunit eq "Kbits/sec" ) {
+                            $bitrate_div = 1000000;
+                        } elsif ( $rateunit eq "Mbits/sec" ) {
+                            $bitrate_div = 1000;
+                        } elsif ( $rateunit eq "Gbits/sec" ) {
+                            $bitrate_div = 1;
+                        } else {
+                            printf "Error: Did not recongnize rate unit: %s\n", $rateunit;
+                            exit 1;
+                        }
                     }
+
                     my $num_fields = scalar @columns;
                     debug_print("num_fields: $num_fields\n"); 
                     $ts_end=$ts + $interval -1;
@@ -233,18 +256,18 @@ sub process_proto {
                         %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' =>  $retry);
                         log_sample("0", \%desc, \%names, \%s);
 
-                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => "tx-$rateunit");
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => "tx-Gbps");
                     } else {
                         # no "Retr" column implies rx side
                         if ( ! defined  $primary_metric ) {
-                            $primary_metric = "rx-$rateunit";
+                            $primary_metric = "rx-Gbps";
                             debug_print("primary_metric $primary_metric\n");
                         }
                         %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => $primary_metric);
 
                     }
                     # log rx "bitrate" sample
-                    %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => $bitrate);
+                    %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => ($bitrate / $bitrate_div));
 
                     log_sample("0", \%desc, \%names, \%s);
                     $ts=$ts+$interval;

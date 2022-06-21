@@ -182,7 +182,7 @@ case "${cpu_pin}" in
 	;;
 esac
 
-options="--format g -c $remotehost -p $control_port $protocol $length --get-server-output"
+options="--format k -c $remotehost -p $control_port $protocol $length --get-server-output"
 #options+=" --cport $data_port"
 # strip ',' from the passthru options 
 passthru_opts=$(echo "$pt_opts" | sed 's/,/ /g')
