@@ -13,8 +13,9 @@ control_port=""
 data_port=""
 ifname=""
 cpu_pin=""
+ipv="4"
 
-longopts="ifname:,cpu-pin:,bitrate:,passthru:"
+longopts="ipv:,ifname:,cpu-pin:,bitrate:,passthru:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error  "Unrecognized option specified"
@@ -23,12 +24,18 @@ eval set -- "$opts";
 echo "opts= $opts"
 while true; do
     case "$1" in
-	--cpu-pin)
-	    shift;
-	    cpu_pin=$1
-	    echo "cpu_pin=${cpu_pin}"
-	    shift;
-	    ;;
+	    --cpu-pin)
+	        shift;
+	        cpu_pin=$1
+	        echo "cpu_pin=${cpu_pin}"
+	        shift;
+	        ;;
+	    --ipv)
+	        shift;
+	        ipv=$1
+	        echo "ipv=${ipv}"
+	        shift;
+	        ;;
         --ifname)
             shift;
             ifname="$1"
@@ -92,17 +99,34 @@ if [ ! -z "$ifname" ]; then
     # Find the element in the 'ip a' array that matches the ifname we are looking for
     ifname_idx=`jq 'to_entries | .[] | if (.value.ifname == "'$ifname'") then .key else null end' ip.json | grep -v null`
     if [ ! -z "$ifname_idx" ]; then
-        echo "$ifname matches index $ifname_idx, looking for ipv4 (inet) in addr_info:"
-        jq '.['$ifname_idx'].addr_info' ip.json
-        # Find the first ipv4 address
-        addr_idx=`jq '.['$ifname_idx'].addr_info | to_entries | .[] | if (.value.family == "inet") then .key else null end' ip.json | grep -v null | head -1`
-        if [ ! -z $addr_idx ]; then
-            echo "Found inet in index $addr_idx:"
-            jq -r '.['$ifname_idx'].addr_info['$addr_idx']' ip.json
-            ip=`jq -r '.['$ifname_idx'].addr_info['$addr_idx'].local' ip.json`
+        if [ "$ipv" == "4" ]; then
+            echo "$ifname matches index $ifname_idx, looking for ipv4 (inet) in addr_info:"
+            jq '.['$ifname_idx'].addr_info' ip.json
+            # Find the first ipv4 address
+            addr_idx=`jq '.['$ifname_idx'].addr_info | to_entries | .[] | if (.value.family == "inet") then .key else null end' ip.json | grep -v null | head -1`
+            if [ ! -z $addr_idx ]; then
+                echo "Found inet in index $addr_idx:"
+                jq -r '.['$ifname_idx'].addr_info['$addr_idx']' ip.json
+                ip=`jq -r '.['$ifname_idx'].addr_info['$addr_idx'].local' ip.json`
+            else
+                addr_info=`jq '.['$ifname_idx'].addr_info' ip.json`
+                exit_error "An IPV4 address could not be found for $ifname in addr_info: $addr_info"
+            fi
+        elif [ "$ipv" == "6" ]; then
+            echo "$ifname matches index $ifname_idx, looking for ipv6 (inet6) in addr_info:"
+            jq '.['$ifname_idx'].addr_info' ip.json
+            # Find the first ipv4 address
+            addr_idx=`jq '.['$ifname_idx'].addr_info | to_entries | .[] | if (.value.family == "inet6") then .key else null end' ip.json | grep -v null | head -1`
+            if [ ! -z $addr_idx ]; then
+                echo "Found inet in index $addr_idx:"
+                jq -r '.['$ifname_idx'].addr_info['$addr_idx']' ip.json
+                ip=`jq -r '.['$ifname_idx'].addr_info['$addr_idx'].local' ip.json`
+            else
+                addr_info=`jq '.['$ifname_idx'].addr_info' ip.json`
+                exit_error "An IPV6 address could not be found for $ifname in addr_info: $addr_info"
+            fi
         else
-            addr_info=`jq '.['$ifname_idx'].addr_info' ip.json`
-            exit_error "An IPV4 address could not be found for $ifname in addr_info: $addr_info"
+            exit_error "The value for --ipv, $ipv, is not supported.  Use 4 for ipv4 or 6 for ipv6"
         fi
     else
         interfaces=`jq -r '. | to_entries | .[] | .value.ifname' ip.json`
@@ -163,6 +187,9 @@ esac
 
 passthru_opts=$(echo "$pt_opts" | sed 's/,/ /g')
 cmd="${cpu_pin_cmd} iperf3 -s --format k -p $control_port $passthru_opts"
+if [ "$ipv" == "6" ]; then
+    cmd+=" -V"
+fi
 echo "going to run: $cmd"
 export MALLOC_CHECK_=2
 $cmd 2>&1 >iperf-server-result.txt &
