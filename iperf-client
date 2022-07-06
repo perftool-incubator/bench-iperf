@@ -19,9 +19,10 @@ control_port=""
 data_port=""
 cpu_pin=""
 pt_opts=""
+ipv="4"
 
 echo "opts before: $@"
-longopts="ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:"
+longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error "Unrecognized option specified"
@@ -30,6 +31,12 @@ eval set -- "$opts";
 echo "opts after: $@"
 while true; do
     case "$1" in
+        --ipv)
+            shift;
+            ipv="$1"
+            echo "ipv=$ipv"
+            shift
+            ;;
         --ifname)
             shift;
             ifname="$1"
@@ -205,6 +212,9 @@ if [ $bit_rate != None ]; then
     options+=" --bitrate $bit_rate"
 fi
 cmd+="${cpu_pin_cmd} iperf3 $options"
+if [ "$ipv" == "6" ]; then
+    cmd+=" -V"
+fi
 echo "going to run: ${cmd}"
 
 date +%s.%N >begin.txt

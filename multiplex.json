@@ -2,7 +2,8 @@
     "presets": {
         "basic" : [
 	    { "arg": "time", "vals": ["60"] },
-	    { "arg": "protocol", "vals": ["tcp"] }
+	    { "arg": "protocol", "vals": ["tcp"] },
+	    { "arg": "ipv", "vals": ["4"] }
         ]
     },
     "validations": {
@@ -10,6 +11,11 @@
             "description": "all possible protocols",
             "args": [ "protocol" ],
             "vals": "^tcp$|^udp$"
+        },
+        "ipv": {
+            "description": "ipv4 or ipv6",
+            "args": [ "ipv" ],
+            "vals": "^4$|^6$"
         },
         "positive_integer": {
             "description": "a whole number greater than 0",
