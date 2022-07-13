@@ -33,7 +33,7 @@ my %s;
 my $ts;
 my $ts_end;
 my %times;
-my $hunting_mode;
+my $hunting_mode=0;
 use constant SEC_TO_MSEC => 1000;
 use constant KBPS_TO_GBPS => 1000000;
 
@@ -55,8 +55,7 @@ GetOptions ("remotehost=s" => \$remotehost,
             "bitrate=s" => \$ignore,
             "ifname=s" => \$ignore,
             "cpu-pin=s" => \$ignore,
-            "hstart=s" => \$hunting_mode,
-            "hend=s" => \$hunting_mode,
+            "bitrate-range=s" => \$hunting_mode
             );
 #
 # Extract begin/end timestamps recorded by the iperf run.
@@ -84,6 +83,7 @@ sub process_proto {
     my $interval;
     print "process_proto: enter\n";
     my $rateunit='none';
+    my $sample_count=0;
 
     (my $rc, my $fh) = open_read_text_file($result_file);
     if ($rc == 0 and defined $fh) {
@@ -191,6 +191,7 @@ sub process_proto {
                     %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => ($bitrate / $bitrate_div));
                     print ("begin: int $ts, end: int $ts_end\n");
                     log_sample("0", \%desc, \%names, \%s);
+                    $sample_count++;
                     $ts=$ts+$interval;
                 } else {
                     debug_print("Skip line: $_");
@@ -274,12 +275,21 @@ sub process_proto {
                     %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => ($bitrate / $bitrate_div));
 
                     log_sample("0", \%desc, \%names, \%s);
+                    $sample_count++;;
                     $ts=$ts+$interval;
                 } else {
                     debug_print("Skip line: $_");
                 }
             } # TCP
         } # while
+
+        if ($sample_count == 0 ) {
+            # If the run failed to produce any sample (could fail), generate a '0 value' sample to make the rest happier.
+            $primary_metric = "rx-Gbps";
+            %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => $primary_metric);
+            %s = ('begin' => int $times{'begin'}, 'end' => int  $times{'end'}, 'value' =>  0);
+            log_sample("0", \%desc, \%names, \%s);
+        }
 
         close($fh);
         my $metric_data_name = finish_samples(1);
@@ -307,7 +317,7 @@ sub process_proto {
 
 #
 # process_hunting_results - processes results of zero-drop hunting runs.
-#    This function Indexes the highest PASS and the lowest FAIL results.
+#    This function indexes the highest PASS and the lowest FAIL results.
 # Inputs: the line patterns that will be processed.
 #    PASS: [  5]   0.00-10.00  sec   215 MBytes  180272 Kbits/sec  0.001 ms  0/3521093 (0%)  receiver
 #    FAIL: [  5]   0.00-10.00  sec   215 MBytes  190272 Kbits/sec  0.001 ms  20/3521093 (0%)  receiver
@@ -332,7 +342,7 @@ sub process_hunting_results {
             if ( /PASS/ ) {
                 # PASS: [  5]   0.00-10.00  sec   215 MBytes  180272 Kbits/sec  0.001 ms  0/3521093 (0%)  receiver
                 my @columns = split(/\s+/, $_);
-                $bitrate=@columns[7];
+                $bitrate=$columns[7];
 
                 if ($bitrate > $highest_bitrate) {
                     $highest_bitrate=$bitrate;
@@ -343,7 +353,7 @@ sub process_hunting_results {
             if ( /FAIL/ ) {
                 # FAIL: [  5]   0.00-10.00  sec   215 MBytes  180272 Kbits/sec  0.001 ms  20/3521093 (0.01%)  receiver
                 my @columns = split(/\s+/, $_);
-                $bitrate=@columns[7];
+                $bitrate=$columns[7];
                 if ($bitrate < $lowest_bitrate) {
                     $lowest_bitrate=$bitrate;
                 }
