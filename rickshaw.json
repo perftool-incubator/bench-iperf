@@ -21,7 +21,12 @@
             {
                 "src": "%bench-dir%/iperf-client",
                 "dest": "/usr/bin/"
+            },
+            {
+                "src": "%bench-dir%/iperf-hunter",
+                "dest": "/usr/bin/"
             }
+
         ],
         "runtime": "iperf-get-runtime",
         "start": "iperf-client"

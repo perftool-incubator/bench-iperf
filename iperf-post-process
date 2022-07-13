@@ -33,7 +33,9 @@ my %s;
 my $ts;
 my $ts_end;
 my %times;
+my $hunting_mode;
 use constant SEC_TO_MSEC => 1000;
+use constant KBPS_TO_GBPS => 1000000;
 
 my $debug;
 
@@ -53,6 +55,8 @@ GetOptions ("remotehost=s" => \$remotehost,
             "bitrate=s" => \$ignore,
             "ifname=s" => \$ignore,
             "cpu-pin=s" => \$ignore,
+            "hstart=s" => \$hunting_mode,
+            "hend=s" => \$hunting_mode,
             );
 #
 # Extract begin/end timestamps recorded by the iperf run.
@@ -301,6 +305,93 @@ sub process_proto {
     }
 } 
 
-process_proto();
+#
+# process_hunting_results - processes results of zero-drop hunting runs.
+#    This function Indexes the highest PASS and the lowest FAIL results.
+# Inputs: the line patterns that will be processed.
+#    PASS: [  5]   0.00-10.00  sec   215 MBytes  180272 Kbits/sec  0.001 ms  0/3521093 (0%)  receiver
+#    FAIL: [  5]   0.00-10.00  sec   215 MBytes  190272 Kbits/sec  0.001 ms  20/3521093 (0%)  receiver
+# Ouput from query:
+#      result: (no-drop-highest/Gbps) samples: 0.182000 mean: 0.182000 min: 0.182000 max: 0.182000 stddev: NaN stddevpct: NaN
+#
+use POSIX;
+sub process_hunting_results {
+
+    my $bitrate;
+    my $highest_bitrate=0;
+    my $lowest_bitrate=POSIX::ULONG_MAX;
+    print "process_hunting_results: enter\n";
+
+    (my $rc, my $fh) = open_read_text_file($result_file);
+    if ($rc == 0 and defined $fh) {
+        $ts=$times{'begin'};
+        $ts_end=$times{'end'};
+
+        while (<$fh>) {
+            debug_print("Proc line: $_"); 
+            if ( /PASS/ ) {
+                # PASS: [  5]   0.00-10.00  sec   215 MBytes  180272 Kbits/sec  0.001 ms  0/3521093 (0%)  receiver
+                my @columns = split(/\s+/, $_);
+                $bitrate=@columns[7];
+
+                if ($bitrate > $highest_bitrate) {
+                    $highest_bitrate=$bitrate;
+                }
+                next;
+
+            }
+            if ( /FAIL/ ) {
+                # FAIL: [  5]   0.00-10.00  sec   215 MBytes  180272 Kbits/sec  0.001 ms  20/3521093 (0.01%)  receiver
+                my @columns = split(/\s+/, $_);
+                $bitrate=@columns[7];
+                if ($bitrate < $lowest_bitrate) {
+                    $lowest_bitrate=$bitrate;
+                }
+                next;
+            }
+        }
+        close($fh);
+        $highest_bitrate= $highest_bitrate / KBPS_TO_GBPS;
+        $lowest_bitrate = $lowest_bitrate  / KBPS_TO_GBPS;
+
+        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'no-drop-highest/Gbps');
+        %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' =>  $highest_bitrate);
+        log_sample("0", \%desc, \%names, \%s);
+
+        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'drop-lowest/Gbps');
+        %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' =>  $lowest_bitrate);
+        log_sample("0", \%desc, \%names, \%s);
+        $primary_metric = "no-drop-highest/Gbps";
+
+        my $metric_data_name = finish_samples(1);
+        # Associate the metrics with a benchmark-period (in this case "measurement")
+        my %sample;
+        my @periods;
+        my %period = ('name' => 'measurement');
+        $sample{'rickshaw-bench-metric'}{'schema'}{'version'} = "2021.04.12";
+        my @metric_files = ( $metric_data_name );
+        $period{'metric-files'} = \@metric_files;
+        push(@periods, \%period);
+        $sample{'periods'} = \@periods;
+        $sample{'primary-period'} = 'measurement';
+        $sample{'primary-metric'} = $primary_metric;
+        $rc = put_json_file("post-process-data.json", \%sample);
+        if ($rc > 0) {
+            printf "iperf-post-process(): Could not write file post-process-data.json\n";
+            exit 1
+        }
+    } else {
+        printf "iperf-post-process(): open_read_text_file() failed with return code %d for file %s\n", $rc, $result_file;
+        printf "Is the current directory for a iperf server (no result file)?\n";
+    }
+
+    printf("hi-no-drop=%.3f Gbps, low-drop=%.3f Gbps\n", $highest_bitrate, $lowest_bitrate);
+}
+
+if ($hunting_mode eq 0) {
+    process_proto();
+} else {
+    process_hunting_results();
+}
 
 # EOF

@@ -20,9 +20,12 @@ data_port=""
 cpu_pin=""
 pt_opts=""
 ipv="4"
+bstart=0
+bend=0
+bitrate_range=
 
 echo "opts before: $@"
-longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:"
+longopts="ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error "Unrecognized option specified"
@@ -85,6 +88,14 @@ while true; do
             shift;
             pt_opts=$1
             echo "pt_opts=$pt_opts"
+            shift
+            ;;
+        --bitrate-range)     # iperf zero-drop hunt 
+            shift;
+            bitrate_range=$1
+            echo "bitrate-range=$bitrate_range"
+            bstart=$(echo $bitrate_range | awk -F'-' '{print $1}')
+            bend=$(echo $bitrate_range | awk -F'-' '{print $2}')
             shift
             ;;
         --)
@@ -216,6 +227,22 @@ if [ "$ipv" == "6" ]; then
     cmd+=" -V"
 fi
 echo "going to run: ${cmd}"
+
+if [ "$bitrate_range" != "" ]; then
+    # We are in a hunting run
+    source /usr/bin/iperf-hunter
+    echo "Hunting for zero drop"
+    #extract the last char, the unit i.e KMG
+    unit=$(echo ${bstart: -1})
+    bstart=${bstart::-1}
+    bend=${bend::-1}
+    
+    echo "HUNTING begin:" > iperf-client-result.txt
+    date +%s.%N >begin.txt
+    generic-hunter --begin $bstart --end $bend iperf-drop-hunter $unit
+    date +%s.%N >end.txt
+    exit
+fi
 
 date +%s.%N >begin.txt
 ${cmd} 2>&1 >iperf-client-result.txt

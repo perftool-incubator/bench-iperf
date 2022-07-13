@@ -1,0 +1,130 @@
+#!/bin/bash
+
+pr_debug=0
+function debug_pr {
+    if [ "$pr_debug" == 1 ]; then
+        echo $@
+    fi
+}
+
+# generic-binary-hunter - binary search the result of a command .
+# Arguments: <low> <high> <cmd>
+# Return: when cmd's return value is 1
+#
+function generic-binary-hunter {
+    debug_pr @15 enter: $@
+    local mid
+    local low=$1
+    local high=$2
+    shift 2
+
+    if [ $low -gt $(($high - 2)) ]; then
+        echo Final answer: $low
+        return   # final result
+    fi
+    mid=$(( ( $low + $high ) / 2 ))
+    if ( eval $@ $mid  ) ; then
+        # cmd PASS
+        low=$mid
+    else
+        # cmd FAIL
+        high=$mid
+    fi
+    # recursive
+    generic-binary-hunter $low $high "$@"
+} 
+
+# generic-hunter - 
+#    generic-hunter --begin $hstart --end $hend <target-command> <arg>
+# Argument: hstart, the hunting start value
+# Argument: hend, the end value
+# Argument: target-command, the function to run 
+# Argument: arg, opaque argument of target-command
+#
+function generic-hunter {
+    debug_pr @45 enter: $@
+
+    longopts="begin:,end:"
+    opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
+    if [ $? -ne 0 ]; then
+        exit_error "Unrecognized option specified"
+    fi
+    eval set -- "$opts"; 
+    while true; do
+        case "$1" in
+        --begin)
+            shift;
+            begin="$1"
+            shift
+            ;; 
+        --end)
+            shift;
+            end="$1"
+            shift
+            ;; 
+        --)
+            shift;
+            break
+            ;;
+        *)
+            exit_error "Invalid option: $1"
+        esac
+    done
+
+    generic-binary-hunter $begin $end "$@"
+} 
+
+# iperf-drop analyzer -  Examine results for drop 
+# Arguments: none
+# Return: analyzed_result
+#
+analyzed_result=
+function iperf-drop-analyzer {
+
+    # Ex: drop 100%
+    #    [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+    # [  5]   0.00-30.00  sec  0.00 Bytes  0.00 Gbits/sec  0.000 ms  0/0 (0%)  receiver
+    #
+    # Drop some:
+    #   - - - - - - - - - - - - - - - - - - - - - - - - -
+    #   [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+    #   [  5]   0.00-30.00  sec  17.5 GBytes  5.00 Gbits/sec  0.012 ms  148/1144389 (0.013%)  receiver
+    pwd 
+    local __tuple
+    rfile="iperf-client-result.txt"
+    pattern="receiver"
+
+    line=$(tail  -n 5 $rfile | grep $pattern)
+    #colum 11 is Lost/Total
+    __tuple="$(echo $line | awk '{print $11}')"
+    analyzed_result=$(echo $__tuple | awk -F'/' '{print $1}')
+    if [ $analyzed_result -eq "0" ] ; then
+        echo "PASS: $line" >> iperf-client-result.txt
+    else
+        echo "FAIL: $line" >> iperf-client-result.txt
+    fi
+}   
+
+# iperf-drop-hunter - run iperf at a specified bitrate and examine for packet drops.
+# Arguments:  <rate-unit> <tx-rate-number>
+# Global Argument: cmd 
+#   The fully loaded cmd i.e 'iperf3 --format k -c <> -p <> --udp --get-server-output'
+#   assembled by iperf-client 
+# Return: 0 - no drop
+#         1 - drops
+function iperf-drop-hunter {
+    local __result
+    new_cmd="$cmd --bitrate $2$1" 
+    ${new_cmd} 2>&1 | tee -a iperf-client-result.txt
+    iperf-drop-analyzer
+    __result=$analyzed_result
+    if [ "$__result" -ne "0" ]; then
+        debug_pr @122 drop=$__result FAIL
+        return 0
+    fi
+        debug_pr @125 drop=$__result PASS
+        return  1
+}
+
+# EOF
+
