@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pr_debug=1
+pr_debug=0
 function debug_pr {
     if [ "$pr_debug" == 1 ]; then
         echo $@
