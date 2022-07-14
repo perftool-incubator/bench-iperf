@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pr_debug=0
+pr_debug=1
 function debug_pr {
     if [ "$pr_debug" == 1 ]; then
         echo $@
@@ -12,7 +12,7 @@ function debug_pr {
 # Return: when cmd's return value is 1
 #
 function generic-binary-hunter {
-    debug_pr @15 enter: $@
+    debug_pr generic-binary-hunter @15 enter: $@
     local mid
     local low=$1
     local high=$2
@@ -24,11 +24,14 @@ function generic-binary-hunter {
     fi
     mid=$(( ( $low + $high ) / 2 ))
     if ( eval $@ $mid  ) ; then
-        # cmd PASS
+        # cmd  return status = 0
+        debug_pr generic-binary-hunter @28 PASS
         low=$mid
     else
-        # cmd FAIL
+        # cmd return status != non-zero
+        debug_pr generic-binary-hunter @32 FAIL
         high=$mid
+
     fi
     # recursive
     generic-binary-hunter $low $high "$@"
@@ -42,7 +45,7 @@ function generic-binary-hunter {
 # Argument: arg, opaque argument of target-command
 #
 function generic-hunter {
-    debug_pr @45 enter: $@
+    debug_pr generic-hunter @45 enter: $@
 
     longopts="begin:,end:"
     opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
@@ -110,20 +113,22 @@ function iperf-drop-analyzer {
 # Global Argument: cmd 
 #   The fully loaded cmd i.e 'iperf3 --format k -c <> -p <> --udp --get-server-output'
 #   assembled by iperf-client 
-# Return: 0 - no drop
-#         1 - drops
+# Return: 0 - no drop - hunter to raise target
+#         1 - drops   - hunter to low target
+#
 function iperf-drop-hunter {
-    local __result
+    debug_pr iperf-drop-hunter @116 enter: $@
     new_cmd="$cmd --bitrate $2$1" 
+    debug_pr iperf-drop-hunter @119 new_cmd: $new_cmd
     ${new_cmd} 2>&1 | tee -a iperf-client-result.txt
     iperf-drop-analyzer
-    __result=$analyzed_result
-    if [ "$__result" -ne "0" ]; then
-        debug_pr @122 drop=$__result FAIL
+    if [ "$analyzed_result" -ne "0" ]; then
+        debug_pr @125 drop=$__result FAIL
+        return 1
+    else
+        debug_pr @128 drop=$__result PASS
         return 0
     fi
-        debug_pr @125 drop=$__result PASS
-        return  1
 }
 
 # EOF
