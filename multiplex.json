@@ -46,6 +46,11 @@
 	        "description": "valid cpu pinning modes",
 	        "args": [ "cpu-pin" ],
 	        "vals": "^numa$"
-	    }
+	    },
+        "size_KMG_range" : {
+            "description" : "a range of size_KMG",
+            "args" : [ "bitrate-range" ],
+            "vals" : "[0-9]*[KMG]\\-[0-9]*[KMG]"
+        }
     }
 }
