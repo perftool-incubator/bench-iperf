@@ -34,7 +34,8 @@ my $ts;
 my $ts_end;
 my %times;
 my $hunting_mode=0;
-my $omit=2;
+# omit is a utility feature for re post-process and ignore a number of first second drops.
+my $omit=0;
 use constant SEC_TO_MSEC => 1000;
 use constant KBPS_TO_GBPS => 1000000;
 
