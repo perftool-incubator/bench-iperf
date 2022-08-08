@@ -34,10 +34,11 @@ my $ts;
 my $ts_end;
 my %times;
 my $hunting_mode=0;
+my $omit=2;
 use constant SEC_TO_MSEC => 1000;
 use constant KBPS_TO_GBPS => 1000000;
 
-my $debug;
+my $debug=0;
 
 sub debug_print {
     if ( defined $debug ) {
@@ -55,7 +56,8 @@ GetOptions ("remotehost=s" => \$remotehost,
             "bitrate=s" => \$ignore,
             "ifname=s" => \$ignore,
             "cpu-pin=s" => \$ignore,
-            "bitrate-range=s" => \$hunting_mode
+            "bitrate-range=s" => \$hunting_mode,
+            "omit=s" => \$omit
             );
 #
 # Extract begin/end timestamps recorded by the iperf run.
@@ -102,6 +104,16 @@ sub process_proto {
             if ( /SUM/ ) {
                 next;
             }
+
+            if ( /omitted/ ) {
+                #  Skip warm up entries from iperf "--omit" option. 
+                #
+                # [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+                # [  5]   0.00-1.00   sec   572 MBytes  4800330 Kbits/sec  0.001 ms  1357/587336 (0.23%)  (omitted)
+                # [  5]   1.00-2.00   sec   580 MBytes  4867703 Kbits/sec  0.001 ms  0/594202 (0%)  (omitted)
+                next;
+            } 
+
             if ( $protocol eq "udp") {
                 # Its output is as follows:
                 #   [ ID] Interval           Transfer     Bitrate         Total Datagrams
@@ -168,6 +180,17 @@ sub process_proto {
                         debug_print("Lost:$lost Total:$total\n");
 
                         %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-lost/sec');
+
+                        if ( $omit != 0 ) {
+                            # Special handling for reruning "crucible postprocess" and wanting to 
+                            # skip the first few second drops as though we have run with --omit option
+                            # This is a hack for times when we do not have the testbed to rerun, and just use the
+                            # existing results, but altering the postprocessing to ignore drops of the first few intervals.
+                            if ( $end <= $omit) {
+                                debug_print("fudge lost value due to on-demand omit, line: $_");
+                                $lost=0;
+                            }
+                        }
                         %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' =>  $lost);
                         log_sample("0", \%desc, \%names, \%s);
 

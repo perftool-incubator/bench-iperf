@@ -1,14 +1,32 @@
 #!/bin/bash
 # vim: autoindent tabstop=4 shiftwidth=4 expandtab softtabstop=4 filetype=bash
 # -*- mode: sh; indent-tabs-mode: nil; sh-basic-offset: 4 -*-
-duration=3600
-opts=$(getopt -q -o "" --longoptions "duration:" -n "getopt.sh" -- "$@");
+
+#exec >iperf-runtime-stderrout.txt
+#exec 2>&1
+
+#iperf3 default time is 10sec
+time=10
+bitrate_range=""
+pt_opts=""
+opts=$(getopt -q -o "" --longoptions "time:,bitrate-range:,passthru:" -n "getopt.sh" -- "$@");
 eval set -- "$opts";
+#echo after: $opts
 while true; do
     case "$1" in
-        --duration)
+        --time)
             shift
-            duration=$1
+            time=$1
+            shift
+            ;;
+        --bitrate-range)
+            shift
+            bitrate_range=$1
+            shift
+            ;;
+        --passthru)
+            shift
+            pt_opts=$1
             shift
             ;;
         --)
@@ -20,4 +38,35 @@ while true; do
             ;;
     esac
 done
-echo $duration
+
+# If passthru, use passthu time. 
+if [ "$pt_opts" != "" ]; then
+    # If passthru has -t option, it overrides mv-param $time value
+    # strip ',' from the pt_opts string
+    passthru=$(echo "$pt_opts" | sed 's/,/ /g')
+    for p in ${passthru}; do
+        if echo "$p" | grep -Eq '\-t[0-9]'; then
+            time=$(echo $p | sed 's/-t//g')
+            break
+        fi
+    done
+
+elif [ "$bitrate_range" != "" ]; then
+    # 0-drop hunting - time factor is O(log2N)
+    bstart=$(echo $bitrate_range | awk -F'-' '{print $1}')
+    bend=$(echo $bitrate_range | awk -F'-' '{print $2}')
+    # strip the unit letter i.e 10M-4000M
+    bstart=${bstart::-1}
+    bend=${bend::-1}
+    range=$((bend-bstart))
+    # compute log2N of this range
+    log_value=$(echo $range | awk '{printf "%d\n", log($1)/log(2)}')
+    # crude way for get its ceil value
+    log_value=$(($log_value+1))
+    time=$(echo $log_value $time | awk '{printf "%d\n", $1*$2}')
+fi
+
+# Set T/O time 2X the compute time.
+time=$(echo $time | awk '{printf "%d\n", $1*2}')
+echo $time
+

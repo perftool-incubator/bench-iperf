@@ -94,17 +94,25 @@ function iperf-drop-analyzer {
     #   [  5]   0.00-30.00  sec  17.5 GBytes  5.00 Gbits/sec  0.012 ms  148/1144389 (0.013%)  receiver
     pwd 
     local __tuple
+    local Lost
+    local Total
     rfile="iperf-client-result.txt"
     pattern="receiver"
 
     line=$(tail  -n 5 $rfile | grep $pattern)
     #colum 11 is Lost/Total
     __tuple="$(echo $line | awk '{print $11}')"
-    analyzed_result=$(echo $__tuple | awk -F'/' '{print $1}')
-    if [ $analyzed_result -eq "0" ] ; then
-        echo "PASS: $line" >> iperf-client-result.txt
-    else
+    Lost=$(echo $__tuple | awk -F'/' '{print $1}')
+    Total=$(echo $__tuple | awk -F'/' '{print $2}')
+    if [ $Total -eq "0" ] ; then
         echo "FAIL: $line" >> iperf-client-result.txt
+        analyzed_result=-1
+    elif [ $Lost -ne "0" ] ; then
+        echo "FAIL: $line" >> iperf-client-result.txt
+        analyzed_result=$Lost
+    else
+        echo "PASS: $line" >> iperf-client-result.txt
+        analyzed_result=$Lost
     fi
 }   
 
@@ -119,7 +127,7 @@ function iperf-drop-analyzer {
 function iperf-drop-hunter {
     debug_pr iperf-drop-hunter @116 enter: $@
     new_cmd="$cmd --bitrate $2$1" 
-    debug_pr iperf-drop-hunter @119 new_cmd: $new_cmd
+    echo iperf-drop-hunter @119 new_cmd: $new_cmd
     ${new_cmd} 2>&1 | tee -a iperf-client-result.txt
     iperf-drop-analyzer
     if [ "$analyzed_result" -ne "0" ]; then
