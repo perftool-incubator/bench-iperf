@@ -199,27 +199,13 @@ echo "ifname=${ifname}"
 echo "ifname_numa_node=${ifname_numa_node}"
 echo "ifname_numa_node_cpus=${ifname_numa_node_cpus}"
 
-function assign-pin-cpu {
-    local my_cpu
-
-    # iperf PIN is to pin same NUMA and 1 CPU
-    IFS=',' read -r -a array <<< "$ifname_numa_node_cpus"
-    if [ "$1" == "client" ]; then
-        my_cpu=${array[${#array[@]}-1]}
-    else
-        my_cpu=${array[${#array[@]}-2]}
-    fi
-    cpu_pin_cmd="taskset --cpu-list ${my_cpu}"
-    echo $1: $cpu_pin_cmd
-}
-
 cpu_pin_cmd=""
 case "${cpu_pin}" in
     "numa")
         cpu_pin_cmd="taskset --cpu-list ${ifname_numa_node_cpus}"
         ;;
     "cpu-numa")
-        assign-pin-cpu server
+        assign-pin-cpu server ${ifname_numa_node_cpus}
         ;;
 esac
 

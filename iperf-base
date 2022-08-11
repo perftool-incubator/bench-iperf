@@ -1,3 +1,37 @@
 #!/bin/bash
 
 if ! source ${TOOLBOX_HOME}/bash/library/bench-base; then echo "ERROR: Could not source bench-base from \$TOOLBOX_HOME [${TOOLBOX_HOME}]"; exit 1; fi
+
+#
+# Assign last CPU in list to client role, and next to last CPU to server role.
+# For PIN functionality, we want same NUMA and separate CPU for client and server.
+# The caller provides the CPU list of its chosen NUMA.
+#
+# Argument: <role> i.e cient or server
+# Argument: <cpu_list>, a comma separated cpu list
+# Return: 
+#  1. Do nothing if cpu list contains less than 2 CPUs.
+#  2. Else, initialize cpu_pin_cmd="taskset --cpu-list chosen_cpu"
+#       
+function assign-pin-cpu {
+    local my_cpu
+    local array
+    local cpu_list=$2
+
+    # convert comma-separate list to array, for access by index
+    IFS=',' read -r -a array <<< $cpu_list
+    if [ "${#array[@]}" -lt 2 ]; then
+        return
+    fi
+
+    if [ "$1" == "client" ]; then
+        # client - assign last CPU in the list
+        my_cpu=${array[${#array[@]}-1]}
+    else
+        # server - assign next to last CPU in the list
+        my_cpu=${array[${#array[@]}-2]}
+    fi
+    cpu_pin_cmd="taskset --cpu-list ${my_cpu}"
+    echo $1: $cpu_pin_cmd
+}
+

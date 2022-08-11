@@ -182,8 +182,7 @@ if [ -e /sys/class/net/${ifname}/device/numa_node ]; then
         ifname_numa_node=0
     fi
 else
-    # When topo=internode topo, the device is eth0. Default it to numa node0.
-    # In other word, if there is no numa associated with ifname, just use numa 0
+    # If there is no numa associated with ifname, just use numa 0.
     ifname_numa_node=0
 fi
 
@@ -215,29 +214,14 @@ echo "data_port=$data_port"
 echo "time=$time"
 echo "length=$length"
 echo "protocol=$protocol"
-
-
-function assign-pin-cpu {
-    local my_cpu
-    # iperf PIN is to pin same NUMA and 1 CPU 
-    IFS=',' read -r -a array <<< "$ifname_numa_node_cpus"
-    if [ "$1" == "client" ]; then
-        my_cpu=${array[${#array[@]}-1]}
-    else
-        my_cpu=${array[${#array[@]}-2]}
-    fi
-	cpu_pin_cmd="taskset --cpu-list ${my_cpu}"
-    echo $1: $cpu_pin_cmd
-}
-
 cpu_pin_cmd=""
 case "${cpu_pin}" in
     "numa")
-	cpu_pin_cmd="taskset --cpu-list ${ifname_numa_node_cpus}"
-	;;
+        cpu_pin_cmd="taskset --cpu-list ${ifname_numa_node_cpus}"
+        ;;
     "cpu-numa")
-    assign-pin-cpu client
-	;;
+        assign-pin-cpu client ${ifname_numa_node_cpus}
+        ;;
 esac
 
 options="--format k -c $remotehost -p $control_port $protocol $length --get-server-output"
