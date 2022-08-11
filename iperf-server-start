@@ -62,14 +62,14 @@ while true; do
 done
 
 case "${cpu_pin}" in
-    ""|"numa")
+    ""|"numa"|"cpu-numa")
 	;;
     *)
 	exit_error "unsupported cpu-pin value '${cpu_pin}'"
 	;;
 esac
 
- uname -a
+uname -a
 
 # A benchmark server can provide both an IP and ports to the client.
 # The server must package these in a JSON, which will be sent to
@@ -96,18 +96,20 @@ if [ ! -z "$ifname" ]; then
         ifname="${before_var}${var}${after_var}"
     fi
     if [ "${ifname}" == "default-route" ]; then
-	echo "Looking for default route interface..."
-	ip -j route > route.json
-	ifname=$(jq --raw-output 'to_entries | .[] | if (.value.dst == "default") then .value.dev else null end' route.json | grep -v null)
-	if [ -z "${ifname}" ]; then
-	    exit_error "could not find default route interface"
-	else
-	    echo "Found default route on interface ${ifname}"
-	fi
+       echo "Looking for default route interface..."
+       ip -j route > route.json
+       ifname=$(jq --raw-output 'to_entries | .[] | if (.value.dst == "default") then .value.dev else null end' route.json | grep -v null)
+       if [ -z "${ifname}" ]; then
+           exit_error "could not find default route interface"
+       else
+           echo "Found default route on interface ${ifname}"
+       fi
     else
-	echo "--ifname=${ifname} was found"
+       echo "--ifname=${ifname} was found"
     fi
     echo "Searching for IP for interface ${ifname}..."
+
+    echo "--ifname=$ifname was found, searching for IP"
     # Find the element in the 'ip a' array that matches the ifname we are looking for
     ifname_idx=`jq 'to_entries | .[] | if (.value.ifname == "'$ifname'") then .key else null end' ip.json | grep -v null`
     if [ ! -z "$ifname_idx" ]; then
@@ -176,31 +178,41 @@ ss -tlnp
 echo
 #TODO: exit with error if ports still used
 
-ifname_numa_node=-1
-ifname_numa_node_cpus=-1
+ifname_numa_node=
+ifname_numa_node_cpus=
 if [ -e /sys/class/net/${ifname}/device/numa_node ]; then
     ifname_numa_node=$(cat /sys/class/net/${ifname}/device/numa_node)
-
-    ifname_numa_node_cpus=$(cat /sys/devices/system/node/node${ifname_numa_node}/cpulist)
-elif [ "${cpu_pin}" == "numa" ]; then
-    exit_error "cannot determine numa node for interface '${ifname}' and cpu-pin is numa"
+    if [ "$ifname_numa_node" == "-1" ]; then
+        # VM case, use numa 0
+        ifname_numa_node=0
+    fi
+else
+    # When topo=internode topo, the device is eth0. Default it to numa node0.
+    # In other word, if there is no numa associated with ifname, just use numa 0
+    ifname_numa_node=0
 fi
 
+ifname_numa_node_cpus=$(cat /sys/devices/system/node/node${ifname_numa_node}/cpulist)
+# convert to comma separated list if there are ranges i.e 0-5 items
+ifname_numa_node_cpus=$(echo $ifname_numa_node_cpus | perl -pe 's/(\d+)-(\d+)/join(",",$1..$2)/eg')
 echo "ifname=${ifname}"
 echo "ifname_numa_node=${ifname_numa_node}"
+echo "ifname_numa_node_cpus=${ifname_numa_node_cpus}"
 
 cpu_pin_cmd=""
 case "${cpu_pin}" in
     "numa")
-	cpu_pin_cmd="taskset --cpu-list ${ifname_numa_node_cpus}"
-	;;
+        cpu_pin_cmd="taskset --cpu-list ${ifname_numa_node_cpus}"
+        ;;
+    "cpu-numa")
+        assign-pin-cpu server ${ifname_numa_node_cpus}
+        ;;
 esac
-
 
 passthru_opts=$(echo "$pt_opts" | sed 's/,/ /g')
 cmd="${cpu_pin_cmd} iperf3 -s --format k -p $control_port $passthru_opts"
 if [ "$ipv" == "6" ]; then
-    cmd+=" -V"
+    cmd+=" -6"
 fi
 echo "going to run: $cmd"
 export MALLOC_CHECK_=2
