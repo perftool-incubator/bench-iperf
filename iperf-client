@@ -23,10 +23,11 @@ ipv="4"
 bstart=0
 bend=0
 bitrate_range=
+max_loss_pct=0
 omit=0
 
 echo "opts before: $@"
-longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,omit:"
+longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error "Unrecognized option specified"
@@ -71,6 +72,12 @@ while true; do
             shift;
             bit_rate=$1
             echo "bitrate=$bit_rate"
+            shift
+            ;;
+        --max-loss-pct)
+            shift;
+            max_loss_pct=$1
+            echo "max-loss-pct=$max-loss-pct"
             shift
             ;;
         --remotehost)
@@ -267,7 +274,7 @@ if [ "$bitrate_range" != "" ]; then
     
     echo "HUNTING begin:" > iperf-client-result.txt
     date +%s.%N >begin.txt
-    generic-hunter --begin $bstart --end $bend iperf-drop-hunter $unit
+    generic-hunter --begin $bstart --end $bend  --max-loss-pct $max_loss_pct iperf-drop-hunter $unit
     date +%s.%N >end.txt
     exit
 fi

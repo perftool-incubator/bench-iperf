@@ -7,6 +7,8 @@ function debug_pr {
     fi
 }
 
+max_percent=0
+
 # generic-binary-hunter - binary search the result of a command .
 # Arguments: <low> <high> <cmd>
 # Return: when cmd's return value is 1
@@ -47,7 +49,7 @@ function generic-binary-hunter {
 function generic-hunter {
     debug_pr generic-hunter @45 enter: $@
 
-    longopts="begin:,end:"
+    longopts="begin:,end:,max-loss-pct:"
     opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
     if [ $? -ne 0 ]; then
         exit_error "Unrecognized option specified"
@@ -63,6 +65,11 @@ function generic-hunter {
         --end)
             shift;
             end="$1"
+            shift
+            ;; 
+        --max-loss-pct)
+            shift;
+            max_percent="$1"
             shift
             ;; 
         --)
@@ -99,20 +106,45 @@ function iperf-drop-analyzer {
     rfile="iperf-client-result.txt"
     pattern="receiver"
 
-    line=$(tail  -n 5 $rfile | grep $pattern)
+    #
+    # Note, sender's Total do not match receiver's Total even when iperf says 
+    # 0% drop. iperf3 itself also computes % drop using receiver stats ONLY. 
+    #
+    receiver_line=$(perl -e 'print reverse <>' $rfile | grep -m 1 "receiver")
+    debug_pr receiver_line=$line
+
     #colum 11 is Lost/Total
-    __tuple="$(echo $line | awk '{print $11}')"
+    __tuple="$(echo $receiver_line | awk '{print $11}')"
     Lost=$(echo $__tuple | awk -F'/' '{print $1}')
     Total=$(echo $__tuple | awk -F'/' '{print $2}')
-    if [ $Total -eq "0" ] ; then
-        echo "FAIL: $line" >> iperf-client-result.txt
+
+    if [ "$Total" -eq "0"  ]; then
+        # UDP must have collapsed. No pkt arrived at the receive side.
+        # This could happen when ipfrag was overwhelmed.
+        echo "FAIL: $receiver_line"  >> iperf-client-result.txt
         analyzed_result=-1
-    elif [ $Lost -ne "0" ] ; then
-        echo "FAIL: $line" >> iperf-client-result.txt
-        analyzed_result=$Lost
+    elif [ "$Lost" -eq "0" ] ; then
+        echo "PASS: $receiver_line"  >> iperf-client-result.txt
+        analyzed_result=0
     else
-        echo "PASS: $line" >> iperf-client-result.txt
-        analyzed_result=$Lost
+        # Compare drops against max-drop-pct limit.
+        percent_drop="$(echo $receiver_line | awk '{print $12}')"
+        debug_pr iperf_drop_percent=$percent_drop
+        # percent_drop is what iperf says, but we'd like to calculate it.
+        calc_percent=$(echo $Lost $Total | awk '{print $1*100/$2}')
+        debug_pr calc_percent=$calc_percent  max_percent=$max_percent
+
+        # Use awk for float compare.
+        # The "!" is needed because the logic in awk boolean tests
+        # is the opposite of the one in shell exit code tests
+        if ! awk "BEGIN{ exit ($calc_percent <= $max_percent) }"; then
+            # Drops were less than max-drop-pct. 
+            echo "PASS: $receiver_line" >> iperf-client-result.txt
+            analyzed_result=0
+        else
+            echo "FAIL: $receiver_line"  >> iperf-client-result.txt
+            analyzed_result=$Lost
+        fi
     fi
 }   
 

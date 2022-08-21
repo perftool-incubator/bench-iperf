@@ -27,6 +27,11 @@
             "args": [ "bitrate" ],
             "vals": "[0-9]*[GMKgmk]*"
         },
+        "positive_float": {
+            "description": "any positive floating point value",
+            "args": [ "max-loss-pct" ],
+            "vals": [ "^([1-9][0-9]*\\.?[0-9]*)|(0?\\.[0-9]+)|(0)$" ]
+        },
         "host-or-ip": {
             "description" : "a hostname or IP address",
             "args": [ "remotehost" ],

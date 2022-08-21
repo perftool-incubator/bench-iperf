@@ -36,6 +36,7 @@ my %times;
 my $hunting_mode=0;
 # omit is a utility feature for re post-process and ignore a number of first second drops.
 my $omit=0;
+my $max_loss_pct=0;
 use constant SEC_TO_MSEC => 1000;
 use constant KBPS_TO_GBPS => 1000000;
 
@@ -55,6 +56,7 @@ GetOptions ("remotehost=s" => \$remotehost,
             "protocol=s" => \$protocol,
             "time=i" => \$ignore,
             "bitrate=s" => \$ignore,
+            "max-loss-pct=s" => \$max_loss_pct,
             "ifname=s" => \$ignore,
             "cpu-pin=s" => \$ignore,
             "bitrate-range=s" => \$hunting_mode,
@@ -346,14 +348,13 @@ sub process_proto {
 #    PASS: [  5]   0.00-10.00  sec   215 MBytes  180272 Kbits/sec  0.001 ms  0/3521093 (0%)  receiver
 #    FAIL: [  5]   0.00-10.00  sec   215 MBytes  190272 Kbits/sec  0.001 ms  20/3521093 (0%)  receiver
 # Ouput from query:
-#      result: (no-drop-highest/Gbps) samples: 0.182000 mean: 0.182000 min: 0.182000 max: 0.182000 stddev: NaN stddevpct: NaN
+#      result: (N percent drop tput/Gbps) samples: 0.182000 mean: 0.182000 min: 0.182000 max: 0.182000 stddev: NaN stddevpct: NaN
 #
 use POSIX;
 sub process_hunting_results {
-
-    my $bitrate;
     my $highest_bitrate=0;
-    my $lowest_bitrate=POSIX::ULONG_MAX;
+    my $bitrate=0;
+    #my $lowest_bitrate=POSIX::ULONG_MAX;
     print "process_hunting_results: enter\n";
 
     (my $rc, my $fh) = open_read_text_file($result_file);
@@ -367,35 +368,21 @@ sub process_hunting_results {
                 # PASS: [  5]   0.00-10.00  sec   215 MBytes  180272 Kbits/sec  0.001 ms  0/3521093 (0%)  receiver
                 my @columns = split(/\s+/, $_);
                 $bitrate=$columns[7];
-
                 if ($bitrate > $highest_bitrate) {
                     $highest_bitrate=$bitrate;
                 }
                 next;
 
             }
-            if ( /FAIL/ ) {
-                # FAIL: [  5]   0.00-10.00  sec   215 MBytes  180272 Kbits/sec  0.001 ms  20/3521093 (0.01%)  receiver
-                my @columns = split(/\s+/, $_);
-                $bitrate=$columns[7];
-                if ($bitrate < $lowest_bitrate) {
-                    $lowest_bitrate=$bitrate;
-                }
-                next;
-            }
         }
         close($fh);
         $highest_bitrate= $highest_bitrate / KBPS_TO_GBPS;
-        $lowest_bitrate = $lowest_bitrate  / KBPS_TO_GBPS;
 
-        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'no-drop-highest/Gbps');
+        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => "$max_loss_pct percent drop tput/Gbps");
         %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' =>  $highest_bitrate);
         log_sample("0", \%desc, \%names, \%s);
 
-        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => 'drop-lowest/Gbps');
-        %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' =>  $lowest_bitrate);
-        log_sample("0", \%desc, \%names, \%s);
-        $primary_metric = "no-drop-highest/Gbps";
+        $primary_metric = "$max_loss_pct percent drop tput/Gbps";
 
         my $metric_data_name = finish_samples(1);
         # Associate the metrics with a benchmark-period (in this case "measurement")
@@ -419,7 +406,7 @@ sub process_hunting_results {
         printf "Is the current directory for a iperf server (no result file)?\n";
     }
 
-    printf("hi-no-drop=%.3f Gbps, low-drop=%.3f Gbps\n", $highest_bitrate, $lowest_bitrate);
+    printf("$max_loss_pct percent drop TPUT=%.3f Gbps\n", $highest_bitrate);
 }
 
 if ($hunting_mode eq 0) {

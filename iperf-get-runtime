@@ -50,8 +50,9 @@ if [ "$pt_opts" != "" ]; then
             break
         fi
     done
+fi
 
-elif [ "$bitrate_range" != "" ]; then
+if [ "$bitrate_range" != "" ]; then
     # 0-drop hunting - time factor is O(log2N)
     bstart=$(echo $bitrate_range | awk -F'-' '{print $1}')
     bend=$(echo $bitrate_range | awk -F'-' '{print $2}')
