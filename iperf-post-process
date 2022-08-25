@@ -33,6 +33,7 @@ my %s;
 my $ts;
 my $ts_end;
 my %times;
+my $duration;
 my $hunting_mode=0;
 # omit is a utility feature for re post-process and ignore a number of first second drops.
 my $omit=0;
@@ -54,7 +55,7 @@ GetOptions ("remotehost=s" => \$remotehost,
             "length=s" => \$ignore,
             "passthru=s" => \$ignore,
             "protocol=s" => \$protocol,
-            "time=i" => \$ignore,
+            "time=i" => \$duration,
             "bitrate=s" => \$ignore,
             "max-loss-pct=s" => \$max_loss_pct,
             "ifname=s" => \$ignore,
@@ -348,13 +349,15 @@ sub process_proto {
 #    PASS: [  5]   0.00-10.00  sec   215 MBytes  180272 Kbits/sec  0.001 ms  0/3521093 (0%)  receiver
 #    FAIL: [  5]   0.00-10.00  sec   215 MBytes  190272 Kbits/sec  0.001 ms  20/3521093 (0%)  receiver
 # Ouput from query:
-#      result: (N percent drop tput/Gbps) samples: 0.182000 mean: 0.182000 min: 0.182000 max: 0.182000 stddev: NaN stddevpct: NaN
+#      result: (rx-Gbps) samples: 0.182000 mean: 0.182000 min: 0.182000 max: 0.182000 stddev: NaN stddevpct: NaN
 #
 use POSIX;
 sub process_hunting_results {
     my $highest_bitrate=0;
+    my $lost_total;
+    my $total_pps=0;
+    my $avg_pps=0;
     my $bitrate=0;
-    #my $lowest_bitrate=POSIX::ULONG_MAX;
     print "process_hunting_results: enter\n";
 
     (my $rc, my $fh) = open_read_text_file($result_file);
@@ -363,6 +366,10 @@ sub process_hunting_results {
         $ts_end=$times{'end'};
 
         while (<$fh>) {
+            #
+            # Note for hunter we do not process time series data, but process the final line of 
+            # the highest/best run. The "PASS: ... receiver" line.
+            #
             debug_print("Proc line: $_"); 
             if ( /PASS/ ) {
                 # PASS: [  5]   0.00-10.00  sec   215 MBytes  180272 Kbits/sec  0.001 ms  0/3521093 (0%)  receiver
@@ -370,6 +377,9 @@ sub process_hunting_results {
                 $bitrate=$columns[7];
                 if ($bitrate > $highest_bitrate) {
                     $highest_bitrate=$bitrate;
+                    $lost_total=$columns[11];
+                    my @tuple = split /\//, $lost_total;
+                    $total_pps = $tuple[1];
                 }
                 next;
 
@@ -377,12 +387,16 @@ sub process_hunting_results {
         }
         close($fh);
         $highest_bitrate= $highest_bitrate / KBPS_TO_GBPS;
+        $avg_pps = $total_pps/$duration;
 
-        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => "$max_loss_pct percent drop tput/Gbps");
+        %desc = ('source' => 'iperf', 'class' => 'count', 'type' => "rx-Gbps");
         %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' =>  $highest_bitrate);
         log_sample("0", \%desc, \%names, \%s);
+        $primary_metric = "rx-Gbps";
 
-        $primary_metric = "$max_loss_pct percent drop tput/Gbps";
+        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-pps');
+        %s = ('begin' => int $ts, 'end' => int $ts_end, 'value' => $avg_pps);
+        log_sample("0", \%desc, \%names, \%s);
 
         my $metric_data_name = finish_samples(1);
         # Associate the metrics with a benchmark-period (in this case "measurement")
