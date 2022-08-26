@@ -273,15 +273,13 @@ if [ "$bitrate_range" != "" ]; then
     bend=${bend::-1}
     
     echo "HUNTING begin:" > iperf-client-result.txt
-    date +%s.%N >begin.txt
     generic-hunter --begin $bstart --end $bend  --max-loss-pct $max_loss_pct iperf-drop-hunter $unit
-    date +%s.%N >end.txt
     exit
 fi
 
-date +%s.%N >begin.txt
-${cmd} 2>&1 >iperf-client-result.txt
-date +%s.%N >end.txt
+echo BEGIN-TS-0 $(date +%s.%N) > iperf-client-result.txt
+${cmd} 2>&1 >> iperf-client-result.txt
+echo END-TS-0 $(date +%s.%N) >> iperf-client-result.txt
 iperf_rc=$?
 if [ $iperf_rc -gt 0 ]; then
     iperf_errors=`grep -i error iperf-client-result.txt`
