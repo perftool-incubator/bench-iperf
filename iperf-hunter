@@ -8,6 +8,7 @@ function debug_pr {
 }
 
 max_percent=0
+h_iter=0
 
 # generic-binary-hunter - binary search the result of a command .
 # Arguments: <low> <high> <cmd>
@@ -20,6 +21,7 @@ function generic-binary-hunter {
     local high=$2
     shift 2
 
+    h_iter=$((h_iter+1))
     if [ $low -gt $(($high - 2)) ]; then
         echo Final answer: $low
         return   # final result
@@ -160,7 +162,9 @@ function iperf-drop-hunter {
     debug_pr iperf-drop-hunter @116 enter: $@
     new_cmd="$cmd --bitrate $2$1" 
     echo iperf-drop-hunter @119 new_cmd: $new_cmd
+    echo BEGIN-TS-$h_iter $(date +%s.%N) >> iperf-client-result.txt
     ${new_cmd} 2>&1 | tee -a iperf-client-result.txt
+    echo END-TS-$h_iter $(date +%s.%N) >> iperf-client-result.txt
     iperf-drop-analyzer
     if [ "$analyzed_result" -ne "0" ]; then
         debug_pr @125 drop=$__result FAIL
