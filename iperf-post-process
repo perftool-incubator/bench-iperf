@@ -324,6 +324,7 @@ sub process_proto {
         $period{'metric-files'} = \@metric_files;
         push(@periods, \%period);
         $sample{'periods'} = \@periods;
+        $sample{'benchmark'} = 'iperf';
         $sample{'primary-period'} = 'measurement';
         $sample{'primary-metric'} = $primary_metric;
         $rc = put_json_file("post-process-data.json", \%sample);
