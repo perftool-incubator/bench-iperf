@@ -176,7 +176,7 @@ sub process_proto {
                         my $total = $tuble[1];
                         debug_print("Lost:$lost Total:$total\n");
 
-                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-lost/sec');
+                        %desc = ('source' => 'iperf', 'class' => 'throughput', 'type' => 'rx-lost-sec');
 
                         if ( $omit != 0 ) {
                             # Special handling for reruning "crucible postprocess" and wanting to 
