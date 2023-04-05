@@ -12,6 +12,7 @@ validate_sw_prereqs jq ss iperf3 getopt ip
 ifname=""
 protocol=""
 length=""
+window=""
 time=10
 bit_rate=None
 remotehost=""
@@ -27,7 +28,7 @@ max_loss_pct=0
 omit=0
 
 echo "opts before: $@"
-longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:"
+longopts="ipv:,ifname:,protocol:,length:,window:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error "Unrecognized option specified"
@@ -66,6 +67,12 @@ while true; do
             shift;
             length="--length $1"
             echo "length=$length"
+            shift
+            ;;
+        --window)
+            shift;
+            window="--window $1"
+            echo "window=$window"
             shift
             ;;
         --bitrate)
@@ -122,7 +129,7 @@ while true; do
 done
 
 case "${cpu_pin}" in
-    ""|"numa"|"cpu-numa")
+    ""|"numa"|"cpu-numa"|"single-wk-cpu")
 	;;
     *)
 	exit_error "unsupported cpu-pin value '${cpu_pin}'"
@@ -220,18 +227,29 @@ echo "control_port=$control_port"
 echo "data_port=$data_port"
 echo "time=$time"
 echo "length=$length"
+echo "window=$window"
 echo "protocol=$protocol"
 cpu_pin_cmd=""
+
 case "${cpu_pin}" in
     "numa")
         cpu_pin_cmd="taskset --cpu-list ${ifname_numa_node_cpus}"
         ;;
     "cpu-numa")
-        assign-pin-cpu client ${ifname_numa_node_cpus}
+        assign-pin-cpu server ${ifname_numa_node_cpus}
+        ;;
+    "single-wk-cpu")
+        if [ ! -z "$WORKLOAD_CPUS" ]; then
+            echo "calling assign-pin-cpu(server, $WORKLOAD_CPUS)"
+            assign-pin-cpu server $WORKLOAD_CPUS
+        else
+            exit_error "WORKLOAD_CPUS does not exist"
+        fi
         ;;
 esac
 
-options="--format k -c $remotehost -p $control_port $protocol $length --get-server-output"
+
+options="--format k -c $remotehost -p $control_port $protocol $length $window --get-server-output"
 if [ "$omit" -ne 0 ]; then
     options+=" --omit $omit"
 fi
@@ -278,9 +296,9 @@ if [ "$bitrate_range" != "" ]; then
 fi
 
 echo BEGIN-TS-0 $(date +%s.%N) > iperf-client-result.txt
-${cmd} 2>&1 >> iperf-client-result.txt
-echo END-TS-0 $(date +%s.%N) >> iperf-client-result.txt
+${cmd}  >>iperf-client-result.txt 2>&1
 iperf_rc=$?
+echo END-TS-0 $(date +%s.%N) >> iperf-client-result.txt
 if [ $iperf_rc -gt 0 ]; then
     iperf_errors=`grep -i error iperf-client-result.txt`
     exit_error "$iperf_errors"

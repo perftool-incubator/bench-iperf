@@ -62,7 +62,7 @@ while true; do
 done
 
 case "${cpu_pin}" in
-    ""|"numa"|"cpu-numa")
+    ""|"numa"|"cpu-numa"|"single-wk-cpu")
 	;;
     *)
 	exit_error "unsupported cpu-pin value '${cpu_pin}'"
@@ -198,6 +198,10 @@ ifname_numa_node_cpus=$(echo $ifname_numa_node_cpus | perl -pe 's/(\d+)-(\d+)/jo
 echo "ifname=${ifname}"
 echo "ifname_numa_node=${ifname_numa_node}"
 echo "ifname_numa_node_cpus=${ifname_numa_node_cpus}"
+echo "taskset -pc \$\$"
+taskset -pc $$
+echo "WORKLOAD_CPUS: [$WORKLOAD_CPUS]"
+echo "HK_CPUS: [$HK_CPUS]"
 
 cpu_pin_cmd=""
 case "${cpu_pin}" in
@@ -206,6 +210,14 @@ case "${cpu_pin}" in
         ;;
     "cpu-numa")
         assign-pin-cpu server ${ifname_numa_node_cpus}
+        ;;
+    "single-wk-cpu")
+        if [ ! -z "$WORKLOAD_CPUS" ]; then
+            echo "calling assign-pin-cpu(server, $WORKLOAD_CPUS)"
+            assign-pin-cpu server $WORKLOAD_CPUS
+        else
+            exit_error "WORKLOAD_CPUS does not exist"
+        fi
         ;;
 esac
 
