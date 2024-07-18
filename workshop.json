@@ -29,11 +29,11 @@
 	        "name": "iperf_src",
 	        "type": "source",
 	        "source_info": {
-		        "url": "https://github.com/esnet/iperf/archive/3.11.tar.gz",
-		        "filename": "3.11.tar.gz",
+		        "url": "https://github.com/esnet/iperf/archive/3.13.tar.gz",
+		        "filename": "3.13.tar.gz",
 		        "commands": { 
-		            "unpack": "tar -xzf 3.11.tar.gz",
-		            "get_dir": "tar -tzf 3.11.tar.gz | head -n 1",
+		            "unpack": "tar -xzf 3.13.tar.gz",
+		            "get_dir": "tar -tzf 3.13.tar.gz | head -n 1",
 		            "commands": [
 			            "CFLAGS=\"-ggdb\" ./configure",
 			            "make",
