@@ -19,7 +19,7 @@
         },
         "positive_integer": {
             "description": "a whole number greater than 0",
-            "args": [ "length", "time", "omit" ],
+            "args": [ "length", "time", "omit", "num-peers" ],
             "vals": "[1-9][0-9]*"
         },
         "bitrate": {

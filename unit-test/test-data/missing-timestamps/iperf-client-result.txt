@@ -1,0 +1,4 @@
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  1.16 GBytes  9.99 Gbits/sec    0   3.01 MBytes
+[  5]   1.00-2.00   sec  1.16 GBytes  10.0 Gbits/sec    0   3.01 MBytes
+[  5]   2.00-3.00   sec  1.16 GBytes  10.0 Gbits/sec    0   3.01 MBytes

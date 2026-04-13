@@ -1,0 +1,5 @@
+{
+  "protocol": "tcp",
+  "expected_metrics": ["tx-Gbps", "tx-retry/sec"],
+  "description": "TCP sender - should generate tx-Gbps and tx-retry/sec"
+}

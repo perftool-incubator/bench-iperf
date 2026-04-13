@@ -1,0 +1,176 @@
+HUNTING begin:
+BEGIN-TS-1 1779448715.827976677
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 40609 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  17.9 MBytes  149866 Kbits/sec  15612  (omitted)
+[  5]   1.00-2.00   sec  17.9 MBytes  150010 Kbits/sec  15626  (omitted)
+[  5]   2.00-3.00   sec  17.9 MBytes  149991 Kbits/sec  15624  (omitted)
+[  5]   0.00-1.00   sec  17.9 MBytes  150026 Kbits/sec  15628  
+[  5]   1.00-2.00   sec  17.9 MBytes  150000 Kbits/sec  15625  
+[  5]   2.00-3.00   sec  17.9 MBytes  149991 Kbits/sec  15624  
+[  5]   3.00-4.00   sec  17.9 MBytes  149992 Kbits/sec  15624  
+[  5]   4.00-5.00   sec  17.9 MBytes  149990 Kbits/sec  15624  
+[  5]   5.00-6.00   sec  17.9 MBytes  149999 Kbits/sec  15625  
+[  5]   6.00-7.00   sec  17.9 MBytes  150000 Kbits/sec  15625  
+[  5]   7.00-8.00   sec  17.9 MBytes  150029 Kbits/sec  15628  
+[  5]   8.00-9.00   sec  17.9 MBytes  149990 Kbits/sec  15624  
+[  5]   9.00-10.00  sec  17.9 MBytes  150009 Kbits/sec  15626  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.00  sec   179 MBytes  150003 Kbits/sec  0.000 ms  0/156253 (0%)  sender
+[  5]   0.00-10.00  sec   179 MBytes  149977 Kbits/sec  0.021 ms  0/156253 (0%)  receiver
+
+iperf Done.
+END-TS-1 1779448728.839584261
+PASS: [  5]   0.00-10.00  sec   179 MBytes  149977 Kbits/sec  0.021 ms  0/156253 (0%)  receiver
+BEGIN-TS-2 1779448728.857562710
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 42260 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  20.8 MBytes  174853 Kbits/sec  18215  (omitted)
+[  5]   1.00-2.00   sec  20.9 MBytes  174998 Kbits/sec  18229  (omitted)
+[  5]   2.00-3.00   sec  20.9 MBytes  175017 Kbits/sec  18231  (omitted)
+[  5]   0.00-1.00   sec  20.9 MBytes  175005 Kbits/sec  18230  
+[  5]   1.00-2.00   sec  20.9 MBytes  175000 Kbits/sec  18229  
+[  5]   2.00-3.00   sec  20.9 MBytes  174979 Kbits/sec  18227  
+[  5]   3.00-4.00   sec  20.9 MBytes  175017 Kbits/sec  18231  
+[  5]   4.00-5.00   sec  20.9 MBytes  174979 Kbits/sec  18227  
+[  5]   5.00-6.00   sec  20.9 MBytes  175027 Kbits/sec  18232  
+[  5]   6.00-7.00   sec  20.9 MBytes  174970 Kbits/sec  18226  
+[  5]   7.00-8.00   sec  20.9 MBytes  175008 Kbits/sec  18230  
+[  5]   8.00-9.00   sec  20.9 MBytes  175018 Kbits/sec  18231  
+[  5]   9.00-10.00  sec  20.9 MBytes  174997 Kbits/sec  18229  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.00  sec   209 MBytes  175001 Kbits/sec  0.000 ms  0/182292 (0%)  sender
+[  5]   0.00-10.00  sec   209 MBytes  174980 Kbits/sec  0.010 ms  0/182292 (0%)  receiver
+
+iperf Done.
+END-TS-2 1779448741.867853344
+PASS: [  5]   0.00-10.00  sec   209 MBytes  174980 Kbits/sec  0.010 ms  0/182292 (0%)  receiver
+BEGIN-TS-3 1779448741.885925646
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 39330 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  22.3 MBytes  186881 Kbits/sec  19468  (omitted)
+[  5]   1.00-2.00   sec  22.3 MBytes  186960 Kbits/sec  19475  (omitted)
+[  5]   2.00-3.00   sec  22.3 MBytes  187008 Kbits/sec  19480  (omitted)
+[  5]   0.00-1.00   sec  22.3 MBytes  187007 Kbits/sec  19480  
+[  5]   1.00-2.00   sec  22.3 MBytes  187036 Kbits/sec  19483  
+[  5]   2.00-3.00   sec  22.3 MBytes  186989 Kbits/sec  19478  
+[  5]   3.00-4.00   sec  22.3 MBytes  186989 Kbits/sec  19478  
+[  5]   4.00-5.00   sec  22.3 MBytes  186969 Kbits/sec  19476  
+[  5]   5.00-6.00   sec  22.3 MBytes  186998 Kbits/sec  19479  
+[  5]   6.00-7.00   sec  22.3 MBytes  187018 Kbits/sec  19481  
+[  5]   7.00-8.00   sec  22.3 MBytes  187018 Kbits/sec  19481  
+[  5]   8.00-9.00   sec  22.3 MBytes  186960 Kbits/sec  19475  
+[  5]   9.00-10.00  sec  22.3 MBytes  187026 Kbits/sec  19482  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.00  sec   223 MBytes  187002 Kbits/sec  0.000 ms  0/194793 (0%)  sender
+[  5]   0.00-10.00  sec   223 MBytes  186979 Kbits/sec  0.008 ms  0/194793 (0%)  receiver
+
+iperf Done.
+END-TS-3 1779448754.896023236
+PASS: [  5]   0.00-10.00  sec   223 MBytes  186979 Kbits/sec  0.008 ms  0/194793 (0%)  receiver
+BEGIN-TS-4 1779448754.914326300
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 55560 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  23.0 MBytes  192832 Kbits/sec  20088  (omitted)
+[  5]   1.00-2.00   sec  23.0 MBytes  192989 Kbits/sec  20103  (omitted)
+[  5]   2.00-3.00   sec  23.0 MBytes  193017 Kbits/sec  20106  (omitted)
+[  5]   0.00-1.00   sec  23.0 MBytes  192998 Kbits/sec  20104  
+[  5]   1.00-2.00   sec  23.0 MBytes  193017 Kbits/sec  20106  
+[  5]   2.00-3.00   sec  23.0 MBytes  192989 Kbits/sec  20103  
+[  5]   3.00-4.00   sec  23.0 MBytes  192989 Kbits/sec  20103  
+[  5]   4.00-5.00   sec  23.0 MBytes  193008 Kbits/sec  20105  
+[  5]   5.00-6.00   sec  23.0 MBytes  192998 Kbits/sec  20104  
+[  5]   6.00-7.00   sec  23.0 MBytes  193008 Kbits/sec  20105  
+[  5]   7.00-8.00   sec  23.0 MBytes  192979 Kbits/sec  20102  
+[  5]   8.00-9.00   sec  23.0 MBytes  193047 Kbits/sec  20109  
+[  5]   9.00-10.00  sec  23.0 MBytes  192959 Kbits/sec  20100  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.00  sec   230 MBytes  193000 Kbits/sec  0.000 ms  0/201041 (0%)  sender
+[  5]   0.00-10.00  sec   230 MBytes  192979 Kbits/sec  0.007 ms  0/201041 (0%)  receiver
+
+iperf Done.
+END-TS-4 1779448767.924095742
+PASS: [  5]   0.00-10.00  sec   230 MBytes  192979 Kbits/sec  0.007 ms  0/201041 (0%)  receiver
+BEGIN-TS-5 1779448767.941561809
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 37959 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  23.4 MBytes  195877 Kbits/sec  20405  (omitted)
+[  5]   1.00-2.00   sec  23.4 MBytes  195982 Kbits/sec  20415  (omitted)
+[  5]   2.00-3.00   sec  23.4 MBytes  195965 Kbits/sec  20413  (omitted)
+[  5]   0.00-1.00   sec  23.4 MBytes  196012 Kbits/sec  20418  
+[  5]   1.00-2.00   sec  23.4 MBytes  196022 Kbits/sec  20419  
+[  5]   2.00-3.00   sec  23.4 MBytes  196003 Kbits/sec  20417  
+[  5]   3.00-4.00   sec  23.4 MBytes  195975 Kbits/sec  20414  
+[  5]   4.00-5.00   sec  23.4 MBytes  195994 Kbits/sec  20416  
+[  5]   5.00-6.00   sec  23.4 MBytes  196031 Kbits/sec  20420  
+[  5]   6.00-7.00   sec  23.4 MBytes  196013 Kbits/sec  20418  
+[  5]   7.00-8.00   sec  23.4 MBytes  195975 Kbits/sec  20414  
+[  5]   8.00-9.00   sec  23.4 MBytes  195975 Kbits/sec  20414  
+[  5]   9.00-10.00  sec  23.4 MBytes  196021 Kbits/sec  20419  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.00  sec   234 MBytes  196003 Kbits/sec  0.000 ms  0/204169 (0%)  sender
+[  5]   0.00-10.00  sec   234 MBytes  195970 Kbits/sec  0.008 ms  0/204169 (0%)  receiver
+
+iperf Done.
+END-TS-5 1779448780.951773406
+PASS: [  5]   0.00-10.00  sec   234 MBytes  195970 Kbits/sec  0.008 ms  0/204169 (0%)  receiver
+BEGIN-TS-6 1779448780.969608226
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 51771 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  23.6 MBytes  197826 Kbits/sec  20608  (omitted)
+[  5]   1.00-2.00   sec  23.6 MBytes  198007 Kbits/sec  20626  (omitted)
+[  5]   2.00-3.00   sec  23.6 MBytes  197991 Kbits/sec  20624  (omitted)
+[  5]   0.00-1.00   sec  23.6 MBytes  197999 Kbits/sec  20625  
+[  5]   1.00-2.00   sec  23.6 MBytes  198039 Kbits/sec  20629  
+[  5]   2.00-3.00   sec  23.6 MBytes  198000 Kbits/sec  20625  
+[  5]   3.00-4.00   sec  23.6 MBytes  197971 Kbits/sec  20622  
+[  5]   4.00-5.00   sec  23.6 MBytes  198010 Kbits/sec  20626  
+[  5]   5.00-6.00   sec  23.6 MBytes  198010 Kbits/sec  20626  
+[  5]   6.00-7.00   sec  23.6 MBytes  198009 Kbits/sec  20626  
+[  5]   7.00-8.00   sec  23.6 MBytes  197991 Kbits/sec  20624  
+[  5]   8.00-9.00   sec  23.6 MBytes  198009 Kbits/sec  20626  
+[  5]   9.00-10.00  sec  23.6 MBytes  197979 Kbits/sec  20623  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.00  sec   236 MBytes  198002 Kbits/sec  0.000 ms  0/206252 (0%)  sender
+[  5]   0.00-10.00  sec   236 MBytes  197978 Kbits/sec  0.007 ms  0/206252 (0%)  receiver
+
+iperf Done.
+END-TS-6 1779448793.978326181
+PASS: [  5]   0.00-10.00  sec   236 MBytes  197978 Kbits/sec  0.007 ms  0/206252 (0%)  receiver
+BEGIN-TS-7 1779448793.995506919
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 59558 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  23.7 MBytes  198881 Kbits/sec  20718  (omitted)
+[  5]   1.00-2.00   sec  23.7 MBytes  198978 Kbits/sec  20727  (omitted)
+[  5]   2.00-3.00   sec  23.7 MBytes  199008 Kbits/sec  20730  (omitted)
+[  5]   0.00-1.00   sec  23.7 MBytes  198959 Kbits/sec  20725  
+[  5]   1.00-2.00   sec  23.7 MBytes  199008 Kbits/sec  20730  
+[  5]   2.00-3.00   sec  23.7 MBytes  198998 Kbits/sec  20729  
+[  5]   3.00-4.00   sec  23.7 MBytes  198999 Kbits/sec  20729  
+[  5]   4.00-5.00   sec  23.7 MBytes  198998 Kbits/sec  20729  
+[  5]   5.00-6.00   sec  23.7 MBytes  198998 Kbits/sec  20729  
+[  5]   6.00-7.00   sec  23.7 MBytes  199008 Kbits/sec  20730  
+[  5]   7.00-8.00   sec  23.7 MBytes  199032 Kbits/sec  20733  
+[  5]   8.00-9.00   sec  23.7 MBytes  198993 Kbits/sec  20728  
+[  5]   9.00-10.00  sec  23.7 MBytes  199001 Kbits/sec  20729  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.00  sec   237 MBytes  199000 Kbits/sec  0.000 ms  0/207291 (0%)  sender
+[  5]   0.00-10.00  sec   237 MBytes  198987 Kbits/sec  0.009 ms  0/207291 (0%)  receiver
+
+iperf Done.
+END-TS-7 1779448807.005491249
+PASS: [  5]   0.00-10.00  sec   237 MBytes  198987 Kbits/sec  0.009 ms  0/207291 (0%)  receiver

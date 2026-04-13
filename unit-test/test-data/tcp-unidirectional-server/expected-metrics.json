@@ -1,0 +1,5 @@
+{
+  "protocol": "tcp",
+  "expected_metrics": ["rx-Gbps"],
+  "description": "TCP receiver - should generate rx-Gbps only"
+}

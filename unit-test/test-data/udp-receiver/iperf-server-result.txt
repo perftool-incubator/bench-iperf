@@ -1,0 +1,31 @@
+BEGIN-TS-0 1779410281.418629755
+-----------------------------------------------------------
+Server listening on 30002 (test #1)
+-----------------------------------------------------------
+-----------------------------------------------------------
+Server listening on 30002 (test #2)
+-----------------------------------------------------------
+Accepted connection from 10.131.0.22, port 38120
+[  5] local 10.128.2.22 port 30002 connected to 10.131.0.22 port 36410
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-1.00   sec   119 MBytes  996289 Kbits/sec  0.003 ms  276/104057 (0.27%)  (omitted)
+[  5]   1.00-2.00   sec   119 MBytes  998905 Kbits/sec  0.006 ms  124/104176 (0.12%)  (omitted)
+[  5]   2.00-3.00   sec   119 MBytes  998952 Kbits/sec  0.019 ms  17/104081 (0.016%)  (omitted)
+[  5]   0.00-1.00   sec   119 MBytes  999189 Kbits/sec  0.002 ms  114/104208 (0.11%)  
+[  5]   1.00-2.00   sec   119 MBytes  999101 Kbits/sec  0.014 ms  65/104132 (0.062%)  
+[  5]   2.00-3.00   sec   119 MBytes  999255 Kbits/sec  0.014 ms  81/104171 (0.078%)  
+[  5]   3.00-4.00   sec   119 MBytes  999908 Kbits/sec  0.004 ms  0/104157 (0%)  
+[  5]   4.00-5.00   sec   119 MBytes  1000809 Kbits/sec  0.008 ms  3/104253 (0.0029%)  
+[  5]   5.00-6.00   sec   119 MBytes  994878 Kbits/sec  0.002 ms  484/104118 (0.46%)  
+[  5]   6.00-7.00   sec   119 MBytes  1000610 Kbits/sec  0.006 ms  0/104224 (0%)  
+[  5]   7.00-8.00   sec   119 MBytes  998241 Kbits/sec  0.003 ms  67/104057 (0.064%)  
+[  5]   8.00-9.00   sec   119 MBytes  1000669 Kbits/sec  0.005 ms  0/104235 (0%)  
+[  5]   9.00-10.00  sec   119 MBytes  999877 Kbits/sec  0.006 ms  53/104202 (0.051%)  
+[  5]  10.00-10.00  sec  17.6 KBytes  83818 Kbits/sec  0.003 ms  0/15 (0%)  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.00  sec  1.16 GBytes  999100 Kbits/sec  0.003 ms  867/1041772 (0.083%)  receiver
+-----------------------------------------------------------
+Server listening on 30002 (test #3)
+-----------------------------------------------------------
+END-TS-0 1779410361.003785439

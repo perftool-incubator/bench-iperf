@@ -1,0 +1,24 @@
+BEGIN-TS-0 1779410321.165499056
+Connecting to host 172.30.122.114, port 30002
+[  5] local 10.131.0.22 port 36410 connected to 172.30.122.114 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec   119 MBytes  999007 Kbits/sec  104070  (omitted)
+[  5]   1.00-2.00   sec   119 MBytes  1000128 Kbits/sec  104180  (omitted)
+[  5]   2.00-3.00   sec   119 MBytes  1000395 Kbits/sec  104205  (omitted)
+[  5]   0.00-1.00   sec   119 MBytes  1000333 Kbits/sec  104207  
+[  5]   1.00-2.00   sec   119 MBytes  999715 Kbits/sec  104133  
+[  5]   2.00-3.00   sec   119 MBytes  1000058 Kbits/sec  104171  
+[  5]   3.00-4.00   sec   119 MBytes  999848 Kbits/sec  104157  
+[  5]   4.00-5.00   sec   119 MBytes  999682 Kbits/sec  104131  
+[  5]   5.00-6.00   sec   119 MBytes  1000448 Kbits/sec  104210  
+[  5]   6.00-7.00   sec   119 MBytes  999529 Kbits/sec  104121  
+[  5]   7.00-8.00   sec   119 MBytes  1000218 Kbits/sec  104186  
+[  5]   8.00-9.00   sec   119 MBytes  1000444 Kbits/sec  104215  
+[  5]   9.00-10.00  sec   119 MBytes  999345 Kbits/sec  104100  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-10.00  sec  1.16 GBytes  999963 Kbits/sec  0.000 ms  0/1041631 (0%)  sender
+[  5]   0.00-10.00  sec  1.16 GBytes  999100 Kbits/sec  0.003 ms  1284/1041631 (0.12%)  receiver
+
+iperf Done.
+END-TS-0 1779410334.175392316

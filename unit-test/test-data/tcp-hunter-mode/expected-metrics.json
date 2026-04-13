@@ -1,0 +1,6 @@
+{
+  "protocol": "tcp",
+  "hunter": true,
+  "expected_metrics": ["tx-Gbps", "tx-retry/sec"],
+  "description": "TCP hunter mode - should select highest passing run and generate tx-Gbps"
+}

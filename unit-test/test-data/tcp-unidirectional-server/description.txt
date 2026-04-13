@@ -1,0 +1,4 @@
+TCP unidirectional server (receiver)
+Header: [ ID] Interval Transfer Bitrate
+No special columns (no Retr, no Lost/Total, no Datagrams)
+Should be detected as TCP receiver and generate rx-Gbps metrics
