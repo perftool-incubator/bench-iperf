@@ -35,3 +35,10 @@ function assign-pin-cpu {
     echo $1: $cpu_pin_cmd
 }
 
+# Source IRQ pinning functions
+if [ -f /usr/bin/iperf-pin ]; then
+    source /usr/bin/iperf-pin
+elif [ -f ./iperf-pin ]; then
+    source ./iperf-pin
+fi
+

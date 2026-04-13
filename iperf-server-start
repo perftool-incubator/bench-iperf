@@ -14,8 +14,12 @@ data_port=""
 ifname=""
 cpu_pin=""
 ipv="4"
+num_peers=0
+protocol=""
+bitrate_range=
+omit=0
 
-longopts="ipv:,ifname:,cpu-pin:,bitrate:,passthru:"
+longopts="ipv:,ifname:,cpu-pin:,bitrate:,passthru:,num-peers:,protocol:,bitrate-range:,omit:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error  "Unrecognized option specified"
@@ -52,6 +56,34 @@ while true; do
             echo "pt_opts=$pt_opts"
             shift
             ;;
+        --num-peers)     # number of siblings for IRQ pinning
+            shift;
+            num_peers=$1
+            echo "num-peers=$num_peers"
+            shift
+            ;;
+        --protocol)
+            shift;
+            if [ "$1" == "udp" ]; then
+                protocol="--udp"
+            fi
+            echo "protocol=$protocol"
+            shift
+            ;;
+        --bitrate-range)     # iperf zero-drop hunt 
+            shift;
+            bitrate_range=$1
+            echo "bitrate-range=$bitrate_range"
+            bstart=$(echo $bitrate_range | awk -F'-' '{print $1}')
+            bend=$(echo $bitrate_range | awk -F'-' '{print $2}')
+            shift
+            ;;
+        --omit)     # skip first number of seconds
+            shift;
+            omit=$1
+            echo "omit=$omit"
+            shift
+            ;;
         --)
             shift;
             break
@@ -60,6 +92,18 @@ while true; do
             exit_error "Invalid option: $1"
     esac
 done
+
+# IRQ pinning if num_peers is specified
+if [ "$num_peers" -gt 0 ]; then
+    # Check if this is a physical/VF interface (not veth)
+    if [ -e "/sys/class/net/$ifname/device/msi_irqs" ]; then
+        echo "Calling run_iperf_worker with num_peers=$num_peers and ifname=$ifname"
+        export IFACE="$ifname"
+        run_iperf_worker "$num_peers"
+    else
+        echo "INFO: Skipping IRQ pinning for $ifname (not a physical/VF interface, likely veth in OVN-K)"
+    fi
+fi
 
 case "${cpu_pin}" in
     ""|"numa"|"cpu-numa")
@@ -216,7 +260,8 @@ if [ "$ipv" == "6" ]; then
 fi
 echo "going to run: $cmd"
 export MALLOC_CHECK_=2
-$cmd 2>&1 >iperf-server-result.txt &
+echo BEGIN-TS-0 $(date +%s.%N) > iperf-server-result.txt
+$cmd 2>&1 >> iperf-server-result.txt &
 pid=$!
 echo $pid >iperf-server.pid
 # Wait a little bit to see if the server errored out

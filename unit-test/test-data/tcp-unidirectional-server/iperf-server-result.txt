@@ -1,0 +1,48 @@
+BEGIN-TS-0 1779554780.163774594
+-----------------------------------------------------------
+Server listening on 30002 (test #1)
+-----------------------------------------------------------
+-----------------------------------------------------------
+Server listening on 30002 (test #2)
+-----------------------------------------------------------
+Accepted connection from 10.131.0.80, port 53522
+[  5] local 10.128.2.58 port 30002 connected to 10.131.0.80 port 53526
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec   558 MBytes  4676843 Kbits/sec                  
+[  5]   1.00-2.00   sec   537 MBytes  4504919 Kbits/sec                  
+[  5]   2.00-3.00   sec   537 MBytes  4504719 Kbits/sec                  
+[  5]   3.00-4.00   sec   539 MBytes  4520871 Kbits/sec                  
+[  5]   4.00-5.00   sec   537 MBytes  4504776 Kbits/sec                  
+[  5]   5.00-6.00   sec   537 MBytes  4505190 Kbits/sec                  
+[  5]   6.00-7.00   sec   537 MBytes  4502472 Kbits/sec                  
+[  5]   7.00-8.00   sec   537 MBytes  4504336 Kbits/sec                  
+[  5]   8.00-9.00   sec   536 MBytes  4498444 Kbits/sec                  
+[  5]   9.00-10.00  sec   537 MBytes  4505191 Kbits/sec                  
+[  5]  10.00-11.00  sec   530 MBytes  4443099 Kbits/sec                  
+[  5]  11.00-12.00  sec   537 MBytes  4505228 Kbits/sec                  
+[  5]  12.00-13.00  sec   537 MBytes  4505070 Kbits/sec                  
+[  5]  13.00-14.00  sec   537 MBytes  4504838 Kbits/sec                  
+[  5]  14.00-15.00  sec   537 MBytes  4505578 Kbits/sec                  
+[  5]  15.00-16.00  sec   537 MBytes  4505276 Kbits/sec                  
+[  5]  16.00-17.00  sec   537 MBytes  4503480 Kbits/sec                  
+[  5]  17.00-18.00  sec   537 MBytes  4506972 Kbits/sec                  
+[  5]  18.00-19.00  sec   537 MBytes  4504913 Kbits/sec                  
+[  5]  19.00-20.00  sec   537 MBytes  4505127 Kbits/sec                  
+[  5]  20.00-21.00  sec   537 MBytes  4505095 Kbits/sec                  
+[  5]  21.00-22.00  sec   535 MBytes  4488643 Kbits/sec                  
+[  5]  22.00-23.00  sec   537 MBytes  4505079 Kbits/sec                  
+[  5]  23.00-24.00  sec   537 MBytes  4505305 Kbits/sec                  
+[  5]  24.00-25.00  sec   537 MBytes  4502825 Kbits/sec                  
+[  5]  25.00-26.00  sec   537 MBytes  4505228 Kbits/sec                  
+[  5]  26.00-27.00  sec   537 MBytes  4504972 Kbits/sec                  
+[  5]  27.00-28.00  sec   537 MBytes  4503950 Kbits/sec                  
+[  5]  28.00-29.00  sec   537 MBytes  4504857 Kbits/sec                  
+[  5]  29.00-30.00  sec   538 MBytes  4509382 Kbits/sec                  
+[  5]  30.00-30.00  sec   519 KBytes  7287986 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-30.00  sec  15.7 GBytes  4508477 Kbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 30002 (test #3)
+-----------------------------------------------------------
+END-TS-0 1779554880.214833184

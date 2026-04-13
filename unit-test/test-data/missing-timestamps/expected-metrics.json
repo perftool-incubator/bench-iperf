@@ -1,0 +1,6 @@
+{
+  "protocol": "tcp",
+  "should_fail": true,
+  "expected_metrics": [],
+  "description": "Missing BEGIN-TS/END-TS timestamps - should cause subprocess.run to fail with empty stdout"
+}

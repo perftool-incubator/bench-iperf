@@ -12,6 +12,8 @@ if [ -e iperf-server.pid ]; then
         echo "PID $pid still exists, trying kill -9"
         kill -9 $pid
     fi
+    # Add END-TS timestamp for post-processing
+    echo END-TS-0 $(date +%s.%N) >> iperf-server-result.txt
 else
     echo "iperf-server.pid not found"
     echo "PWD: `/bin/pwd`"

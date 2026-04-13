@@ -1,0 +1,32 @@
+# Claude Code working directory
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Testing artifacts (root directory only, not test-data/)
+/*.csv.xz
+/*.json.xz
+/metric-data-*.csv
+/metric-data-*.json
+/post-process-data.json
+/iperf-client-result.txt
+/iperf-server-result.txt
+
+# Backup files
+*.backup
+*.swp
+*.swo
+*~
+
+# Development/debugging
+JUNK/
+PIN
