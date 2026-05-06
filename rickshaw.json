@@ -6,7 +6,7 @@
     },
     "benchmark": "iperf",
     "controller": {
-        "post-script": "%bench-dir%iperf-post-process"
+        "post-script": "%bench-dir%iperf-post-process.py"
     },
     "client": {
         "files-from-controller": [
