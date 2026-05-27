@@ -1,0 +1,6 @@
+{
+  "protocol": "tcp",
+  "bidir": true,
+  "expected_metrics": ["tx-Gbps", "rx-Gbps", "tx-retry/sec"],
+  "description": "TCP bidirectional client - should aggregate tx-Gbps and rx-Gbps from [TX-C] and [RX-C] flows"
+}

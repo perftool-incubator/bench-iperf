@@ -1,0 +1,209 @@
+#!/bin/bash
+# -*- mode: sh; indent-tabs-mode: nil; sh-basic-offset: 4 -*-
+# vim: autoindent tabstop=4 shiftwidth=4 expandtab softtabstop=4 filetype=bash
+#
+# iperf-pin — Autonomous IRQ pinning for iperf siblings
+#
+# Purpose:
+#   Distributes NIC IRQ handling across multiple iperf sibling containers using
+#   a deterministic two-level round-robin algorithm. Each container independently
+#   calculates which IRQs it owns based on its sibling index.
+#
+# Algorithm:
+#   Level 1: Distribute IRQs across siblings — IRQ[i] → sibling[i % NUM_PEERS]
+#   Level 2: Pin owned IRQs to CPUs — owned_IRQ[j] → CPU[j % NUM_CPUS]
+#
+# Requirements:
+#   - cs_label environment variable with format "role-N" (e.g., "client-0", "server-1")
+#   - IFACE environment variable set to network interface name
+#   - Container must have privileged access to /proc/irq/*/smp_affinity
+#
+# Usage:
+#   run_iperf_worker <num_peers>
+#
+# Each container runs this identically. No master, no coordination required.
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+expand_cpuset() {
+    # Expand "0-3,5,7-9" → "0 1 2 3 5 7 8 9"
+    local raw="$1"
+    python3 -c "
+r=[]
+for p in '${raw}'.split(','):
+    parts = p.strip().split('-')
+    if len(parts) == 2:
+        r.extend(range(int(parts[0]), int(parts[1])+1))
+    else:
+        r.append(int(parts[0]))
+print(' '.join(map(str, r)))
+"
+}
+
+get_my_cpus() {
+    # Read container's assigned CPUs from cgroup
+    local raw
+
+    # Try container-specific cgroup path first (cgroup v2)
+    local cgroup_path=$(cat /proc/self/cgroup 2>/dev/null | cut -d: -f3)
+    if [[ -n "$cgroup_path" ]]; then
+        raw=$(cat /sys/fs/cgroup${cgroup_path}/cpuset.cpus.effective 2>/dev/null \
+           || cat /sys/fs/cgroup${cgroup_path}/cpuset.cpus 2>/dev/null \
+           || echo "")
+    fi
+
+    # Fall back to root cgroup paths
+    if [[ -z "$raw" ]]; then
+        raw=$(cat /sys/fs/cgroup/cpuset.cpus.effective 2>/dev/null \
+           || cat /sys/fs/cgroup/cpuset.cpus 2>/dev/null \
+           || cat /sys/fs/cgroup/cpuset/cpuset.cpus 2>/dev/null \
+           || echo "")
+    fi
+
+    if [[ -z "$raw" ]]; then
+        echo "FATAL: cannot read cpuset" >&2
+        return 1
+    fi
+
+    # Expand and return all assigned CPUs
+    local cpus
+    cpus=$(expand_cpuset "$raw")
+
+    if [[ -z "$cpus" ]]; then
+        echo "FATAL: no CPUs in cpuset '$raw'" >&2
+        return 1
+    fi
+
+    echo "${cpus}"
+}
+
+get_nic_irqs() {
+    # Return sorted TxRx IRQs for iface via sysfs + /proc/interrupts filter
+    local iface="$1"
+    local irq_dir="/sys/class/net/${iface}/device/msi_irqs"
+
+    if [[ ! -d "$irq_dir" ]]; then
+        echo "FATAL: $irq_dir not found — is $iface a PCI device?" >&2
+        return 1
+    fi
+
+    for irq in $(ls "$irq_dir" | sort -n); do
+        grep -P "^\s*${irq}:" /proc/interrupts | grep -qiE 'TxRx|mlx5_comp' && echo "$irq"
+    done
+}
+
+validate_irqs() {
+    local n_irqs=$1 n_peers=$2 iface=$3
+    if [[ $n_irqs -lt $n_peers ]]; then
+        echo "FATAL: $iface has $n_irqs TxRx IRQs but NUM_PEERS=$n_peers" >&2
+        echo "       Reduce numVfs in SriovNetworkNodePolicy so this VF gets >= $n_peers queues" >&2
+        return 1
+    fi
+    return 0
+}
+
+# ── Core assignment function ──────────────────────────────────────────────────
+#
+# assign_and_pin IRQS MY_INDEX NUM_PEERS MY_CPUS [DRY_RUN]
+#
+# IRQS      — space-separated sorted IRQ numbers
+# MY_INDEX  — this sibling's index (0-based)
+# NUM_PEERS — total sibling count
+# MY_CPUS   — space-separated CPU list for this sibling
+# DRY_RUN   — if "1", print assignments but do not write smp_affinity
+#
+# Level 1 round-robin: IRQ[i] belongs to sibling[i % NUM_PEERS]
+# Level 2 round-robin: owned IRQ[j] pins to MY_CPUS[j % len(MY_CPUS)]
+#
+assign_and_pin() {
+    local -a irqs=($1)
+    local my_index=$2
+    local num_peers=$3
+    local -a my_cpus=($4)
+    local dry_run=${5:-0}
+
+    local n_irqs=${#irqs[@]}
+    local n_cpus=${#my_cpus[@]}
+    local my_irq_count=0
+    local tag="[sibling-${my_index}]"
+
+    echo "$tag IRQs=$n_irqs peers=$num_peers my_cpus=(${my_cpus[*]})"
+
+    for (( i=0; i<n_irqs; i++ )); do
+        if (( i % num_peers == my_index )); then
+            local irq="${irqs[$i]}"
+            local cpu="${my_cpus[$((my_irq_count % n_cpus))]}"
+            local mask
+
+            # Calculate bitmask for CPU affinity
+            # For CPUs >= 32, we need comma-separated format: high,low
+            if (( cpu >= 32 )); then
+                local high_bits=$(( cpu - 32 ))
+                mask=$(printf '%08x,%08x' $((1 << high_bits)) 0)
+            else
+                mask=$(printf '%x' $((1 << cpu)))
+            fi
+
+            if [[ "$dry_run" == "1" ]]; then
+                echo "$tag  [DRY] IRQ $irq (queue $i) → CPU $cpu  mask $mask"
+            else
+                if echo "$mask" > /proc/irq/${irq}/smp_affinity 2>/dev/null; then
+                    echo "$tag  PIN  IRQ $irq (queue $i) → CPU $cpu  mask $mask  [ok]"
+                else
+                    echo "$tag  WARN IRQ $irq (queue $i) → CPU $cpu  mask $mask  [failed: $(cat /proc/irq/${irq}/smp_affinity 2>/dev/null)]" >&2
+                fi
+            fi
+            (( my_irq_count++ ))
+        fi
+    done
+
+    echo "$tag Owns $my_irq_count / $n_irqs IRQs"
+}
+
+# ── Entrypoint ────────────────────────────────────────────────────────────────
+run_iperf_worker() {
+    local num_peers="$1"
+    local iface="${IFACE:?need IFACE}"
+    local dry_run="${DRY_RUN:-0}"
+
+    # Validate num_peers argument
+    if [[ -z "$num_peers" ]] || ! [[ "$num_peers" =~ ^[0-9]+$ ]]; then
+        echo "FATAL: run_iperf_worker requires NUM_PEERS as first argument (got: '$num_peers')" >&2
+        exit 1
+    fi
+
+    # Auto-detect index from cs_label (rickshaw standard: "client-1", "server-2", etc.)
+    local container_name="${cs_label:-${CONTAINER_NAME}}"
+    if [[ -z "$container_name" ]]; then
+        echo "FATAL: need cs_label or CONTAINER_NAME environment variable" >&2
+        exit 1
+    fi
+
+    local my_index="${container_name##*-}"
+    if ! [[ "$my_index" =~ ^[0-9]+$ ]]; then
+        echo "FATAL: cannot parse index from cs_label/CONTAINER_NAME='$container_name'" >&2
+        exit 1
+    fi
+
+    # Convert from 1-based (rickshaw convention) to 0-based (for modulo arithmetic)
+    # rickshaw names containers: client-1, client-2, server-1, server-2, etc.
+    # We need 0, 1 for num_peers=2 modulo operations
+    my_index=$((my_index - 1))
+
+    # Collect own CPUs
+    local my_cpus
+    my_cpus=$(get_my_cpus) || exit 1
+
+    # Collect IRQs
+    local -a irqs
+    mapfile -t irqs < <(get_nic_irqs "$iface") || exit 1
+
+    # Validate
+    validate_irqs "${#irqs[@]}" "$num_peers" "$iface" || exit 1
+
+    # Assign and pin
+    assign_and_pin "${irqs[*]}" "$my_index" "$num_peers" "$my_cpus" "$dry_run"
+
+    echo "[$container_name] IRQ pinning complete"
+}
+

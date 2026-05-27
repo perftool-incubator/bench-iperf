@@ -25,9 +25,10 @@ bend=0
 bitrate_range=
 max_loss_pct=0
 omit=0
+num_peers=0
 
 echo "opts before: $@"
-longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:"
+longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:,num-peers:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error "Unrecognized option specified"
@@ -112,6 +113,12 @@ while true; do
             echo "omit=$omit"
             shift
             ;;
+        --num-peers)     # number of siblings for IRQ pinning
+            shift;
+            num_peers=$1
+            echo "num-peers=$num_peers"
+            shift
+            ;;
         --)
             shift;
             break
@@ -120,6 +127,18 @@ while true; do
             exit_error "Invalid option: $1"
     esac
 done
+
+# IRQ pinning if num_peers is specified
+if [ "$num_peers" -gt 0 ]; then
+    # Check if this is a physical/VF interface (not veth)
+    if [ -e "/sys/class/net/$ifname/device/msi_irqs" ]; then
+        echo "Calling run_iperf_worker with num_peers=$num_peers and ifname=$ifname"
+        export IFACE="$ifname"
+        run_iperf_worker "$num_peers"
+    else
+        echo "INFO: Skipping IRQ pinning for $ifname (not a physical/VF interface, likely veth in OVN-K)"
+    fi
+fi
 
 case "${cpu_pin}" in
     ""|"numa"|"cpu-numa")
@@ -231,7 +250,7 @@ case "${cpu_pin}" in
         ;;
 esac
 
-options="--format k -c $remotehost -p $control_port $protocol $length --get-server-output"
+options="--format k -c $remotehost -p $control_port $protocol $length"
 if [ "$omit" -ne 0 ]; then
     options+=" --omit $omit"
 fi
@@ -276,6 +295,31 @@ if [ "$bitrate_range" != "" ]; then
     generic-hunter --begin $bstart --end $bend  --max-loss-pct $max_loss_pct iperf-drop-hunter $unit
     exit
 fi
+
+timeout_sec=10
+interval=1
+elapsed=0
+start_time=$SECONDS
+
+until (echo >/dev/tcp/$remotehost/$control_port) &>/dev/null; do
+    elapsed=$((SECONDS - start_time))
+    if [ $elapsed -ge $timeout_sec ]; then
+        echo "ERROR: $remotehost:$control_port unreachable after ${timeout_sec}s"
+        exit 1
+    fi
+    echo "Waiting for $remotehost:$control_port... (${elapsed}s)"
+    sleep $interval
+done
+
+# Sleep remaining time so all parallel pods start together
+elapsed=$((SECONDS - start_time))
+remaining=$((timeout_sec - elapsed))
+if [ $remaining -gt 0 ]; then
+    echo "$remotehost:$control_port is ready, waiting ${remaining}s for other pods..."
+    sleep $remaining
+fi
+
+echo "Starting iperf3..."
 
 echo BEGIN-TS-0 $(date +%s.%N) > iperf-client-result.txt
 ${cmd} 2>&1 >> iperf-client-result.txt

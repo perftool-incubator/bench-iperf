@@ -1,0 +1,5 @@
+{
+  "protocol": "udp",
+  "expected_metrics": ["tx-Gbps"],
+  "description": "UDP sender - should generate tx-Gbps only"
+}

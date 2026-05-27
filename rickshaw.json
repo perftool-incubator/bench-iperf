@@ -15,6 +15,10 @@
                 "dest": "/usr/bin/"
             },
             {
+                "src": "%bench-dir%/iperf-pin",
+                "dest": "/usr/bin/"
+            },
+            {
                 "src": "%bench-dir%/iperf-get-runtime",
                 "dest": "/usr/bin/"
             },
@@ -34,6 +38,10 @@
         "files-from-controller": [
             {
                 "src": "%bench-dir%/iperf-base",
+                "dest": "/usr/bin/"
+            },
+            {
+                "src": "%bench-dir%/iperf-pin",
                 "dest": "/usr/bin/"
             },
             {

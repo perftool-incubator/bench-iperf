@@ -1,0 +1,162 @@
+# iperf Post-Processor Debug Skill
+
+You are debugging the iperf post-processor (`../iperf-post-process.py`). This unit-test directory contains test infrastructure to help validate fixes.
+
+## Current Working Directory
+You are in: `/opt/crucible/subprojects/benchmarks/iperf/unit-test/`
+
+## Available Test Infrastructure
+
+### Test Suite
+- **run-tests.py** - Runs all 8 test cases and reports pass/fail status
+- **test-data/** - Contains 8 test cases with real production data:
+  - `missing-timestamps/` - Failure detection test
+  - `tcp-unidirectional-client/` - TCP sender (tx-Gbps, tx-retry/sec)
+  - `tcp-unidirectional-server/` - TCP receiver (rx-Gbps)
+  - `tcp-bidirectional-client/` - TCP bidir client (tx-Gbps, rx-Gbps)
+  - `tcp-bidirectional-server/` - TCP bidir server (tx-Gbps, rx-Gbps)
+  - `udp-sender/` - UDP sender (tx-Gbps)
+  - `udp-receiver/` - UDP receiver (rx-Gbps, rx-lost/sec, rx-pps)
+  - `tcp-hunter-mode/` - Multiple bitrate runs with PASS/FAIL selection
+
+### Python Environment
+- **Local venv**: `.venv/` directory (Python 3.11)
+- **Bootstrap script**: `bootstrap.sh` creates/validates venv
+- Post-processor runs with: `.venv/bin/python3 ../iperf-post-process.py`
+
+## Debugging Workflow
+
+### Step 1: Identify the Problem
+Run the test suite to see which tests fail:
+```bash
+./run-tests.py
+```
+
+The output shows:
+- Which test cases fail
+- STDOUT from the post-processor (including error messages)
+- STDERR with Python tracebacks
+
+### Step 2: Reproduce the Issue Manually
+To debug a specific failing test (e.g., tcp-unidirectional-server):
+
+```bash
+# Copy test data to parent directory
+cp test-data/tcp-unidirectional-server/iperf-server-result.txt ..
+cp test-data/tcp-unidirectional-server/iperf-client-result.txt ..
+
+# Run post-processor directly with venv Python
+cd ..
+unit-test/.venv/bin/python3 iperf-post-process.py --protocol=tcp --ipv=4 --ifname=eth0
+
+# Return to unit-test directory
+cd unit-test
+```
+
+### Step 3: Examine Test Data
+Read the test case files to understand the input:
+```bash
+# View the iperf output that's failing
+cat test-data/tcp-unidirectional-server/iperf-server-result.txt
+
+# Check what metrics are expected
+cat test-data/tcp-unidirectional-server/expected-metrics.json
+```
+
+### Step 4: Fix the Post-Processor
+Edit `../iperf-post-process.py` to fix the issue.
+
+### Step 5: Validate the Fix
+Re-run the test suite to ensure:
+- The failing test now passes
+- No regressions (all 8 tests still pass)
+
+```bash
+./run-tests.py
+```
+
+### Step 6: Add Test Case if Needed
+If fixing a new bug, add a test case to prevent regression:
+
+```bash
+mkdir test-data/new-bug-case
+# Copy relevant iperf result files
+cp /path/to/iperf-client-result.txt test-data/new-bug-case/
+
+# Create expected-metrics.json
+cat > test-data/new-bug-case/expected-metrics.json << 'EOF'
+{
+  "protocol": "tcp",
+  "expected_metrics": ["rx-Gbps"],
+  "description": "Description of what this validates"
+}
+EOF
+```
+
+## Key Files to Understand
+
+### ../iperf-post-process.py
+Main post-processor script. Key functions:
+- `process_proto()` - Parses iperf output, detects protocol/mode, logs metrics
+- `extract_role()` - Identifies bidirectional role markers (TX-C, RX-S, etc.)
+- `pre_process_hunting_results()` - Handles hunter mode (selects best run)
+
+### Test Success Criteria
+Each test passes if the post-processor:
+1. Exits without Python exceptions
+2. Prints "POST-PROCESS-STATUS: success" to stdout
+
+For `should_fail` tests, success means:
+- Post-processor fails (no success marker in output)
+- This validates error detection works correctly
+
+## Common Issues and Solutions
+
+### Protocol Detection
+- TCP sender: Header has "Retr" column
+- TCP receiver: Header has no special columns
+- UDP receiver: Header has "Lost/Total" column
+- UDP: Header has "Datagrams" column
+
+### Bidirectional Mode
+- Detected by role markers: `[TX-C]`, `[RX-C]`, `[TX-S]`, `[RX-S]`
+- TX and RX throughput are aggregated separately by timestamp
+
+### Hunter Mode
+- Client: Selects highest bitrate PASS, extracts that run
+- Server: Reads client's selection, extracts matching test number
+
+## Important Notes
+
+- **Never commit failing tests** - All 8 tests must pass before committing
+- **Check for regressions** - Ensure fix doesn't break other test cases
+- **Test locally first** - Use this environment before running full crucible runs
+- **Add documentation** - Update IPERF-POST-PROCESS.md if changing behavior
+
+## Quick Reference Commands
+
+```bash
+# Run all tests
+./run-tests.py
+
+# Check venv exists
+ls .venv/bin/python3
+
+# Recreate venv if needed
+rm -rf .venv && ./bootstrap.sh
+
+# View post-processor
+cat ../iperf-post-process.py | less
+
+# Check git status
+cd .. && git status
+```
+
+## Success Criteria
+
+Before considering the issue fixed:
+1. ✅ All 8 tests pass (`./run-tests.py`)
+2. ✅ Manual reproduction confirms the fix
+3. ✅ No regressions introduced
+4. ✅ New test case added if fixing a new bug
+5. ✅ Documentation updated if behavior changed
