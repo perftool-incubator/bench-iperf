@@ -611,10 +611,12 @@ def main():
                 engine_index = path_parts[-1]
                 print(f"Detected engine index {engine_index} from current directory: {cwd}")
 
-        # Default to index 1 if we can't determine it
+        # Fail if we can't determine the engine index
         if engine_index is None:
-            engine_index = "1"
-            print("WARNING: Could not detect engine index, defaulting to 1")
+            print("ERROR: Could not detect engine index from cs_label or working directory")
+            print(f"  cs_label environment variable: {os.environ.get('cs_label', '(not set)')}")
+            print(f"  Current working directory: {os.getcwd()}")
+            sys.exit(1)
 
         timestamp_file = f"../../client/{engine_index}/iperf-client-result.txt"
         if not os.path.exists(timestamp_file):
