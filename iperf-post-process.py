@@ -67,7 +67,7 @@ def dup_one_run(fh, first_line, outfile):
     os.rename(temp_file, outfile)
 
 
-def pre_process_hunting_results(from_file, to_file, client_hunt_result=None):
+def pre_process_hunting_results(from_file, to_file, client_hunt_result=None, engine_index="1"):
     """Extract the best run from hunting results.
 
     For client: finds highest bitrate PASS and extracts that run.
@@ -106,7 +106,7 @@ def pre_process_hunting_results(from_file, to_file, client_hunt_result=None):
                 if match:
                     selected_run = int(match.group(1))
                     print(f"Client selected run {selected_run}, extracting test #{selected_run} from server results")
-                    extract_server_test(from_file, to_file, selected_run)
+                    extract_server_test(from_file, to_file, selected_run, engine_index)
                     return
                 else:
                     print(f"ERROR: Could not find BEGIN-TS-N pattern in {client_hunt_result}")
@@ -168,7 +168,7 @@ def pre_process_hunting_results(from_file, to_file, client_hunt_result=None):
     fh.close()
 
 
-def extract_server_test(from_file, to_file, test_number):
+def extract_server_test(from_file, to_file, test_number, engine_index="1"):
     """Extract a specific test number from server result file.
 
     Server output has markers like 'Server listening on 30002 (test #N)'
@@ -181,7 +181,7 @@ def extract_server_test(from_file, to_file, test_number):
         return
 
     # Read timestamps from client hunt-temp-result.txt
-    client_hunt = "../../client/1/hunt-temp-result.txt"
+    client_hunt = f"../../client/{engine_index}/hunt-temp-result.txt"
     begin_ts = None
     end_ts = None
     if os.path.exists(client_hunt):
@@ -586,8 +586,39 @@ def main():
     elif os.path.exists("iperf-server-result.txt"):
         result_file = "iperf-server-result.txt"
         is_server = True
+
         # Server reads timestamps from client result file
-        timestamp_file = "../../client/1/iperf-client-result.txt"
+        # Determine engine index from environment or current directory
+        engine_index = None
+
+        # Try cs_label environment variable first (e.g., "server-3")
+        cs_label = os.environ.get("cs_label", "")
+        if cs_label:
+            parts = cs_label.split("-")
+            if len(parts) >= 2:
+                try:
+                    engine_index = parts[-1]
+                    print(f"Detected engine index {engine_index} from cs_label: {cs_label}")
+                except (ValueError, IndexError):
+                    pass
+
+        # Fallback: extract from current working directory path
+        if engine_index is None:
+            cwd = os.getcwd()
+            # Path is typically: .../sample-1/server/3/
+            path_parts = cwd.rstrip("/").split("/")
+            if len(path_parts) >= 2 and path_parts[-2] in ["server", "client"]:
+                engine_index = path_parts[-1]
+                print(f"Detected engine index {engine_index} from current directory: {cwd}")
+
+        # Fail if we can't determine the engine index
+        if engine_index is None:
+            print("ERROR: Could not detect engine index from cs_label or working directory")
+            print(f"  cs_label environment variable: {os.environ.get('cs_label', '(not set)')}")
+            print(f"  Current working directory: {os.getcwd()}")
+            sys.exit(1)
+
+        timestamp_file = f"../../client/{engine_index}/iperf-client-result.txt"
         if not os.path.exists(timestamp_file):
             print(f"ERROR: Server needs client timestamps from {timestamp_file}")
             print("Client result file not found")
@@ -626,8 +657,8 @@ def main():
         # Hunting mode: process selected run from result_file
         # For server, pass client hunt result so it can extract the same run number
         if is_server:
-            client_hunt_result = "../../client/1/hunt-temp-result.txt"
-            pre_process_hunting_results(result_file, final_hunt_result, client_hunt_result)
+            client_hunt_result = f"../../client/{engine_index}/hunt-temp-result.txt"
+            pre_process_hunting_results(result_file, final_hunt_result, client_hunt_result, engine_index)
             timestamp_source = client_hunt_result if os.path.exists(client_hunt_result) else timestamp_file
         else:
             # Client mode - find best run from its own results
