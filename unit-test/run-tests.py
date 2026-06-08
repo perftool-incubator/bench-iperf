@@ -44,10 +44,12 @@ def run_test_case(test_dir):
 
     # Copy test files to the real script directory (where wrapper will run)
     # Clean up any previous test artifacts first
-    for artifact in ["iperf-client-result.txt", "iperf-server-result.txt",
-                     "metric-data-*.json", "metric-data-*.csv*", "post-process-data.json"]:
+    for artifact in ["iperf-client-result.txt", "iperf-server-result.txt"]:
         for f in REAL_SCRIPT_DIR.glob(artifact):
             f.unlink()
+    pp_dir = REAL_SCRIPT_DIR / "postprocess"
+    if pp_dir.exists():
+        shutil.rmtree(pp_dir)
 
     # Copy input files to real script directory
     if (test_dir / "iperf-client-result.txt").exists():
@@ -120,14 +122,13 @@ def run_test_case(test_dir):
 
     finally:
         # Clean up test files from real script directory
-        for artifact in ["iperf-client-result.txt", "iperf-server-result.txt",
-                         "post-process-data.json"]:
+        for artifact in ["iperf-client-result.txt", "iperf-server-result.txt"]:
             artifact_path = REAL_SCRIPT_DIR / artifact
             if artifact_path.exists():
                 artifact_path.unlink()
-        for pattern in ["metric-data-*.json", "metric-data-*.csv*"]:
-            for f in REAL_SCRIPT_DIR.glob(pattern):
-                f.unlink()
+        pp_dir = REAL_SCRIPT_DIR / "postprocess"
+        if pp_dir.exists():
+            shutil.rmtree(pp_dir)
 
 def main():
     """Run all tests"""

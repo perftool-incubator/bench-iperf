@@ -547,7 +547,7 @@ def process_proto(data_file, times, names, omit, metrics):
         ],
     }
 
-    with open("post-process-data.json", "w") as f:
+    with open("postprocess/post-process-data.json", "w") as f:
         json.dump(sample_data, f)
 
     return primary_metric
