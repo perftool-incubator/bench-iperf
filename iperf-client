@@ -152,18 +152,12 @@ uname -a
 # Unless the user specifies a specific remotehost argument, this must
 # be sourced from the endpoint (which gets it from the client)
 if [ -z "$remotehost" ]; then
-    echo "--remotehost was not set via cmdline args, checking any messages from the endpoint"
+    echo "--remotehost was not set via cmdline args, checking for resolved service info"
     echo "These files exist in ./msgs/rx:"
     /bin/ls -l msgs/rx
-    file="msgs/rx/endpoint-start-end:1"  
-    if [ ! -e "${file}" ]; then
-        # File exists when EP created SVC to frontend server.
-        # EP does not create SVC when hostNetwork or remotehost server
-        #  in which cases server IP is in server-start-end:1
-        file="msgs/rx/server-start-end:1"
-    fi
+    file="msgs/rx/svc"
     if [ -e "$file" ]; then
-        echo "Found $file"
+        echo "Found resolved service info: ${file}"
         ipaddr=`jq -r '.svc.ip' $file`
         if [ ! -z "$ipaddr" ]; then
             echo "Found server IP $ipaddr"
