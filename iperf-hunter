@@ -115,7 +115,7 @@ function iperf-drop-analyzer {
     receiver_line=$(perl -e 'print reverse <>' $rfile | grep -m 1 "receiver")
     debug_pr receiver_line=$line
 
-    #colum 11 is Lost/Total
+    #column 11 is Lost/Total
     __tuple="$(echo $receiver_line | awk '{print $11}')"
     Lost=$(echo $__tuple | awk -F'/' '{print $1}')
     Total=$(echo $__tuple | awk -F'/' '{print $2}')
