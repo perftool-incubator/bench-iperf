@@ -46,7 +46,7 @@ while true; do
             echo "ifname=$ifname"
             shift
             ;;
-        --protocol|--length|--remotehost|--time|--bitrate)
+        --length|--remotehost|--time|--bitrate)
             shift;
             shift;
             ;;
@@ -173,7 +173,7 @@ if [ ! -z "$ifname" ]; then
         elif [ "$ipv" == "6" ]; then
             echo "$ifname matches index $ifname_idx, looking for ipv6 (inet6) in addr_info:"
             jq '.['$ifname_idx'].addr_info' ip.json
-            # Find the first ipv4 address
+            # Find the first ipv6 address
             addr_idx=`jq '.['$ifname_idx'].addr_info | to_entries | .[] | if (.value.family == "inet6") then .key else null end' ip.json | grep -v null | head -1`
             if [ ! -z $addr_idx ]; then
                 echo "Found inet in index $addr_idx:"
@@ -267,7 +267,7 @@ echo $pid >iperf-server.pid
 # Wait a little bit to see if the server errored out
 sleep 10
 if grep -q -i error iperf-server-result.txt; then
-    exit_error "Server failed to start: `grep -i error iperf-server-results.txt`"
+    exit_error "Server failed to start: `grep -i error iperf-server-result.txt`"
 fi
 echo ps:
 ps aux | grep iperf3
