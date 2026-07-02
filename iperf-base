@@ -7,7 +7,7 @@ if ! source ${TOOLBOX_HOME}/bash/library/bench-base; then echo "ERROR: Could not
 # For PIN functionality, we want same NUMA and separate CPU for client and server.
 # The caller provides the CPU list of its chosen NUMA.
 #
-# Argument: <role> i.e cient or server
+# Argument: <role> i.e client or server
 # Argument: <cpu_list>, a comma separated cpu list
 # Return: 
 #  1. Do nothing if cpu list contains less than 2 CPUs.
