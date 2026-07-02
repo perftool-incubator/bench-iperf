@@ -78,7 +78,7 @@ while true; do
         --max-loss-pct)
             shift;
             max_loss_pct=$1
-            echo "max-loss-pct=$max-loss-pct"
+            echo "max-loss-pct=$max_loss_pct"
             shift
             ;;
         --remotehost)
