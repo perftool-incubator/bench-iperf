@@ -239,9 +239,14 @@ fi
 if [ -e /sys/class/net/${ifname_numa_node_lookup}/device/numa_node ]; then
     ifname_numa_node=$(cat /sys/class/net/${ifname_numa_node_lookup}/device/numa_node)
     if [ "$ifname_numa_node" == "-1" ]; then
+        if [[ "${cpu_pin}" == "numa" || "${cpu_pin}" == "cpu-numa" ]]; then
+            exit_error "PCIe has no NUMA locality, but cpu-pin is ${cpu_pin}"
+        fi
         # VM case, use numa 0
         ifname_numa_node=0
     fi
+elif [[ "${cpu_pin}" == "numa" || "${cpu_pin}" == "cpu-numa" ]]; then
+    exit_error "cannot determine numa node for interface '${ifname}' and cpu-pin is ${cpu_pin}"
 else
     # When topo=internode topo, the device is eth0. Default it to numa node0.
     # In other word, if there is no numa associated with ifname, just use numa 0
