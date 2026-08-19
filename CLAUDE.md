@@ -11,6 +11,7 @@ Scripts and configuration to run the iperf3 network throughput benchmark within 
 | File | Purpose |
 |------|---------|
 | `rickshaw.json` | Rickshaw integration: client/server scripts, parameter transformations |
+| `benchmark-metadata.json` | Machine-readable description and CDM-indexed source/type list (consumed by `crucible benchmarks list`) |
 | `iperf-client` | Client-side benchmark execution |
 | `iperf-server-start` / `iperf-server-stop` | Server lifecycle management |
 | `iperf-post-process.py` | Parses iperf text output into crucible metrics |

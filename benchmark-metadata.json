@@ -1,0 +1,26 @@
+{
+  "rickshaw-benchmark-metadata": {
+    "schema": {
+      "version": "2026.08.11"
+    }
+  },
+  "benchmark": "iperf",
+  "description": "iperf3 network throughput benchmark -- measures TCP/UDP bandwidth (Gbps) between client and server endpoints, with TCP retransmission rate and UDP packet loss/rate metrics.",
+  "cdm_indexed": true,
+  "cdm_sources": [
+    {
+      "source": "iperf",
+      "types": [
+        "tx-Gbps",
+        "rx-Gbps",
+        "tx-retry/sec",
+        "rx-lost/sec",
+        "rx-pps"
+      ]
+    }
+  ],
+  "output_files": [
+    "iperf-client-result.txt",
+    "iperf-server-result.txt"
+  ]
+}
