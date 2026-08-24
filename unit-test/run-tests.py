@@ -6,6 +6,7 @@ Runs the post-processor against test samples and verifies expected metrics are g
 """
 
 import json
+import lzma
 import os
 import subprocess
 import sys
@@ -42,28 +43,33 @@ def run_test_case(test_dir):
     print(f"  Description: {expected.get('description', 'N/A')}")
     print(f"  Expected metrics: {expected['expected_metrics']}")
 
-    # Copy test files to the real script directory (where wrapper will run)
-    # Clean up any previous test artifacts first
-    for artifact in ["iperf-client-result.txt", "iperf-server-result.txt"]:
-        for f in REAL_SCRIPT_DIR.glob(artifact):
-            f.unlink()
-    pp_dir = REAL_SCRIPT_DIR / "postprocess"
-    if pp_dir.exists():
-        shutil.rmtree(pp_dir)
-
-    # Copy input files to real script directory
-    if (test_dir / "iperf-client-result.txt").exists():
-        shutil.copy(test_dir / "iperf-client-result.txt", REAL_SCRIPT_DIR)
-    if (test_dir / "iperf-server-result.txt").exists():
-        shutil.copy(test_dir / "iperf-server-result.txt", REAL_SCRIPT_DIR)
-
+    # The post-processor picks client vs. server mode by checking which
+    # result file exists in its cwd, checking for a client file first. A
+    # flat copy of both files into one directory would always resolve to
+    # client mode, silently skipping server-mode testing whenever a case
+    # provides both files (needed so server mode can read the client's
+    # timestamps). Lay out a real sample-1/<role>/1/ tree instead, matching
+    # how rickshaw actually invokes this script, so role is unambiguous.
+    role = expected.get('role', 'client')
+    run_dir = Path(tempfile.mkdtemp(prefix="iperf-unit-test-"))
     try:
+        client_dir = run_dir / "sample-1" / "client" / "1"
+        server_dir = run_dir / "sample-1" / "server" / "1"
+        client_dir.mkdir(parents=True)
+        server_dir.mkdir(parents=True)
+
+        if (test_dir / "iperf-client-result.txt").exists():
+            shutil.copy(test_dir / "iperf-client-result.txt", client_dir)
+        if (test_dir / "iperf-server-result.txt").exists():
+            shutil.copy(test_dir / "iperf-server-result.txt", server_dir)
+
+        cwd = server_dir if role == 'server' else client_dir
+
         # Determine protocol arg
         protocol = expected.get('protocol', 'tcp')
 
         # Run post-processor using Python 3.11 venv (no container needed)
         # Set TOOLBOX_HOME and PYTHONPATH for imports to work
-        # Use /opt/crucible directly since REAL_SCRIPT_DIR resolves symlinks
         venv_python = VENV_DIR / "bin" / "python3"
         script_path = REAL_SCRIPT_DIR / "iperf-post-process.py"
         toolbox_home = Path("/opt/crucible/subprojects/core/toolbox")
@@ -79,7 +85,7 @@ def run_test_case(test_dir):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
-            cwd=str(REAL_SCRIPT_DIR),
+            cwd=str(cwd),
             env=env
         )
 
@@ -114,21 +120,37 @@ def run_test_case(test_dir):
                 if result.stderr:
                     print(f"  STDERR:\n{result.stderr}")
                 return False
-            else:
-                # Expected success and got success marker
-                print(f"  PASS ✓ (post-processor completed successfully)")
-                print(f"  Note: Expected metrics {expected['expected_metrics']} (not verified due to container isolation)")
-                return True
+
+            metric_types, stream_ids = read_metric_metadata(cwd / "postprocess")
+
+            expected_types = set(expected['expected_metrics'])
+            if metric_types != expected_types:
+                print(f"  FAIL ✗ Metric types {sorted(metric_types)} != expected {sorted(expected_types)}")
+                return False
+
+            expected_stream_count = expected.get('expected_stream_count')
+            if expected_stream_count is not None and len(stream_ids) != expected_stream_count:
+                print(f"  FAIL ✗ Found {len(stream_ids)} distinct stream(s) {sorted(stream_ids)}, expected {expected_stream_count}")
+                return False
+
+            print(f"  PASS ✓ (metric types {sorted(metric_types)} match" +
+                  (f", {len(stream_ids)} stream(s) {sorted(stream_ids)})" if stream_ids else ")"))
+            return True
 
     finally:
-        # Clean up test files from real script directory
-        for artifact in ["iperf-client-result.txt", "iperf-server-result.txt"]:
-            artifact_path = REAL_SCRIPT_DIR / artifact
-            if artifact_path.exists():
-                artifact_path.unlink()
-        pp_dir = REAL_SCRIPT_DIR / "postprocess"
-        if pp_dir.exists():
-            shutil.rmtree(pp_dir)
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def read_metric_metadata(pp_dir):
+    """Return (set of metric types, set of stream breakout values) from a postprocess/ dir."""
+    meta_file = pp_dir / "metric-data-0.json.xz"
+    if not meta_file.exists():
+        return set(), set()
+    with lzma.open(meta_file, "rt") as f:
+        metric_types = json.load(f)
+    types = {m["desc"]["type"] for m in metric_types}
+    streams = {m["names"]["stream"] for m in metric_types if "stream" in m["names"]}
+    return types, streams
 
 def main():
     """Run all tests"""
