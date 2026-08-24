@@ -19,7 +19,7 @@
         },
         "positive_integer": {
             "description": "a whole number greater than 0",
-            "args": [ "length", "time", "omit", "num-peers" ],
+            "args": [ "length", "time", "omit", "num-peers", "nthreads" ],
             "vals": "[1-9][0-9]*"
         },
         "bitrate": {
@@ -50,7 +50,7 @@
 	    "cpu-pinning": {
 	        "description": "valid cpu pinning modes",
 	        "args": [ "cpu-pin" ],
-	        "vals": "^numa$|^cpu-numa$"
+	        "vals": "^numa$|^cpu-numa$|^cpu-numa:[1-9][0-9]*$|^cpu:(([0-9]*)(-[1-9][0-9]*)?)(,(([1-9][0-9]*)(-[1-9][0-9]*)?))*$"
 	    },
         "size_KMG_range" : {
             "description" : "a range of size_KMG",

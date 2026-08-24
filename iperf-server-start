@@ -19,7 +19,7 @@ protocol=""
 bitrate_range=
 omit=0
 
-longopts="ipv:,ifname:,cpu-pin:,bitrate:,passthru:,num-peers:,protocol:,bitrate-range:,omit:"
+longopts="ipv:,ifname:,cpu-pin:,bitrate:,passthru:,num-peers:,protocol:,bitrate-range:,omit:,nthreads:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error  "Unrecognized option specified"
@@ -46,7 +46,9 @@ while true; do
             echo "ifname=$ifname"
             shift
             ;;
-        --length|--remotehost|--time|--bitrate)
+        --length|--remotehost|--time|--bitrate|--nthreads)
+            # iperf3 server has no -P flag of its own -- it just services
+            # however many streams the client opens with --parallel
             shift;
             shift;
             ;;
@@ -105,8 +107,17 @@ if [ "$num_peers" -gt 0 ]; then
     fi
 fi
 
+cpu_pin_param=""
+if echo "${cpu_pin}" | grep -q "^cpu:"; then
+    cpu_pin_param=$(echo "${cpu_pin}" | cut -d: -f2-)
+    cpu_pin="cpu"
+elif echo "${cpu_pin}" | grep -q "^cpu-numa:"; then
+    cpu_pin_param=$(echo "${cpu_pin}" | cut -d: -f2-)
+    cpu_pin="cpu-numa-n"
+fi
+
 case "${cpu_pin}" in
-    ""|"numa"|"cpu-numa")
+    ""|"numa"|"cpu-numa"|"cpu"|"cpu-numa-n")
 	;;
     *)
 	exit_error "unsupported cpu-pin value '${cpu_pin}'"
@@ -275,6 +286,19 @@ case "${cpu_pin}" in
         ;;
     "cpu-numa")
         assign-pin-cpu server ${ifname_numa_node_cpus}
+        ;;
+    "cpu-numa-n")
+        available=$(echo "${ifname_numa_node_cpus}" | tr ',' '\n' | wc -l)
+        requested="${cpu_pin_param}"
+        if [ "${requested}" -gt "${available}" ]; then
+            echo "WARNING: cpu-pin requested ${requested} cpus but numa node ${ifname_numa_node} only has ${available}; clamping to ${available}"
+            requested="${available}"
+        fi
+        pool=$(echo "${ifname_numa_node_cpus}" | tr ',' '\n' | head -n "${requested}" | paste -sd, -)
+        cpu_pin_cmd="taskset --cpu-list ${pool}"
+        ;;
+    "cpu")
+        cpu_pin_cmd="taskset --cpu-list ${cpu_pin_param}"
         ;;
 esac
 

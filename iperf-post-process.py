@@ -52,6 +52,20 @@ def extract_role(line):
     return None
 
 
+def extract_stream_id(line):
+    """Extract the iperf3 stream ID from a per-stream data line.
+
+    With --parallel/-P > 1 (one OS thread per stream since iperf3 3.16),
+    each interval has one row per stream plus a "[SUM]" aggregate row.
+    Returns the stream ID string (e.g. "5"), or None for a "[SUM]" row
+    or any line without a leading "[ ID]" marker.
+    """
+    match = re.match(r'\[\s*(\d+)\]', line)
+    if match:
+        return match.group(1)
+    return None
+
+
 def dup_one_run(fh, first_line, outfile):
     # Write to temp file first, then atomic rename to prevent race condition
     # where server might read partially-written file
@@ -299,6 +313,12 @@ def process_proto(data_file, times, names, omit, metrics):
             debug_print(f"Proc line: {line}\n")
             columns = line.split()
 
+            # Tag each stream's samples with its iperf3 stream ID so
+            # nthreads > 1 runs log per-stream series instead of colliding
+            # into one; CDM's default-aggregation sums across the breakout.
+            stream_id = extract_stream_id(line)
+            sample_names = {**names, "stream": stream_id} if stream_id else names
+
             # Find interval using X.XX-Y.YY pattern
             interval_val = None
             for col in columns:
@@ -365,11 +385,11 @@ def process_proto(data_file, times, names, omit, metrics):
 
                         desc = {"source": "iperf", "class": "throughput", "type": "rx-lost/sec"}
                         s = {"begin": int(ts), "end": int(ts_end), "value": lost}
-                        metrics.log_sample("0", desc, names, s)
+                        metrics.log_sample("0", desc, sample_names, s)
 
                         desc = {"source": "iperf", "class": "throughput", "type": "rx-pps"}
                         s = {"begin": int(ts), "end": int(ts_end), "value": total}
-                        metrics.log_sample("0", desc, names, s)
+                        metrics.log_sample("0", desc, sample_names, s)
 
                         if primary_metric is None:
                             primary_metric = "rx-Gbps"
@@ -390,7 +410,7 @@ def process_proto(data_file, times, names, omit, metrics):
 
             s = {"begin": int(ts), "end": int(ts_end), "value": bitrate / bitrate_div}
             debug_print(f"begin: int {ts}, end: int {ts_end}\n")
-            metrics.log_sample("0", desc, names, s)
+            metrics.log_sample("0", desc, sample_names, s)
             sample_count += 1
             ts = ts + interval_val
 
@@ -407,6 +427,12 @@ def process_proto(data_file, times, names, omit, metrics):
                 print()
 
             columns = line.split()
+
+            # Tag each stream's samples with its iperf3 stream ID so
+            # nthreads > 1 runs log per-stream series instead of colliding
+            # into one; CDM's default-aggregation sums across the breakout.
+            stream_id = extract_stream_id(line)
+            sample_names = {**names, "stream": stream_id} if stream_id else names
 
             # Find interval using X.XX-Y.YY pattern
             interval_val = None
@@ -466,7 +492,7 @@ def process_proto(data_file, times, names, omit, metrics):
 
                         desc = {"source": "iperf", "class": "count", "type": "tx-retry/sec"}
                         s = {"begin": int(ts), "end": int(ts_end), "value": retry}
-                        metrics.log_sample("0", desc, names, s)
+                        metrics.log_sample("0", desc, sample_names, s)
                         break  # Found retry, stop searching
                     except (ValueError, IndexError):
                         # Not an integer, keep looking
@@ -493,8 +519,9 @@ def process_proto(data_file, times, names, omit, metrics):
             throughput_value = bitrate / bitrate_div
 
             if bidir_mode:
-                # Accumulate for later aggregation
-                key = (int(ts), int(ts_end))
+                # Accumulate for later aggregation, keyed per-stream so
+                # nthreads > 1 doesn't collapse separate streams together
+                key = (int(ts), int(ts_end), stream_id)
                 if key not in throughput_samples:
                     throughput_samples[key] = {}
                 if metric_type not in throughput_samples[key]:
@@ -505,7 +532,7 @@ def process_proto(data_file, times, names, omit, metrics):
                 # Log immediately in unidirectional mode
                 desc = {"source": "iperf", "class": "throughput", "type": metric_type}
                 s = {"begin": int(ts), "end": int(ts_end), "value": throughput_value}
-                metrics.log_sample("0", desc, names, s)
+                metrics.log_sample("0", desc, sample_names, s)
 
             sample_count += 1
             ts = ts + interval_val
@@ -521,11 +548,14 @@ def process_proto(data_file, times, names, omit, metrics):
     # Log accumulated bidirectional samples
     if bidir_mode and throughput_samples:
         print(f"Logging {len(throughput_samples)} accumulated bidirectional samples")
-        for (begin_ts, end_ts), metrics_dict in sorted(throughput_samples.items()):
+        for (begin_ts, end_ts, stream_id), metrics_dict in sorted(
+            throughput_samples.items(), key=lambda item: item[0][:2]
+        ):
+            sample_names = {**names, "stream": stream_id} if stream_id else names
             for metric_type, value in metrics_dict.items():
                 desc = {"source": "iperf", "class": "throughput", "type": metric_type}
                 s = {"begin": begin_ts, "end": end_ts, "value": value}
-                metrics.log_sample("0", desc, names, s)
+                metrics.log_sample("0", desc, sample_names, s)
                 debug_print(f"Logged {metric_type}: {value} Gbps for period {begin_ts}-{end_ts}\n")
 
     metric_data_name = metrics.finish_samples(dont_delete=True)

@@ -1,0 +1,7 @@
+{
+  "protocol": "tcp",
+  "role": "server",
+  "expected_metrics": ["rx-Gbps"],
+  "expected_stream_count": 4,
+  "description": "TCP receiver with 4 parallel streams (client used --parallel 4 / nthreads=4) - each stream's rx-Gbps should be logged as its own 'stream' breakout series, not summed"
+}
