@@ -133,6 +133,19 @@ def run_test_case(test_dir):
                 print(f"  FAIL ✗ Found {len(stream_ids)} distinct stream(s) {sorted(stream_ids)}, expected {expected_stream_count}")
                 return False
 
+            # Guard against timestamps stretching beyond the actual test
+            # window (e.g. a per-row instead of per-interval ts increment
+            # would multiply the series length by nthreads).
+            window = get_test_window_ms(test_dir)
+            if window is not None:
+                begin_ms, end_ms = window
+                max_sample_end = get_max_sample_end(cwd / "postprocess")
+                tolerance_ms = 2000
+                if max_sample_end is not None and max_sample_end > end_ms + tolerance_ms:
+                    print(f"  FAIL ✗ Max sample end {max_sample_end} exceeds test window end "
+                          f"{end_ms} (+{tolerance_ms}ms tolerance) - timestamps may be stretched")
+                    return False
+
             print(f"  PASS ✓ (metric types {sorted(metric_types)} match" +
                   (f", {len(stream_ids)} stream(s) {sorted(stream_ids)})" if stream_ids else ")"))
             return True
@@ -151,6 +164,43 @@ def read_metric_metadata(pp_dir):
     types = {m["desc"]["type"] for m in metric_types}
     streams = {m["names"]["stream"] for m in metric_types if "stream" in m["names"]}
     return types, streams
+
+
+def get_test_window_ms(test_dir):
+    """Return (begin_ms, end_ms) parsed from BEGIN-TS/END-TS in the client
+    result file - the same file iperf-post-process.py always reads
+    timestamps from, for both client and server mode."""
+    client_file = test_dir / "iperf-client-result.txt"
+    if not client_file.exists():
+        return None
+    begin_ts = end_ts = None
+    with open(client_file) as f:
+        for line in f:
+            if begin_ts is None and "BEGIN-TS" in line:
+                begin_ts = float(line.split()[1])
+            elif end_ts is None and "END-TS" in line:
+                end_ts = float(line.split()[1])
+    if begin_ts is None or end_ts is None:
+        return None
+    return begin_ts * 1000, end_ts * 1000
+
+
+def get_max_sample_end(pp_dir):
+    """Return the maximum 'end' timestamp across all logged samples in a
+    postprocess/ dir's CSV data, or None if there is no data."""
+    csv_file = pp_dir / "metric-data-0.csv.xz"
+    if not csv_file.exists():
+        return None
+    max_end = None
+    with lzma.open(csv_file, "rt") as f:
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) < 3:
+                continue
+            end = float(parts[2])
+            if max_end is None or end > max_end:
+                max_end = end
+    return max_end
 
 def main():
     """Run all tests"""

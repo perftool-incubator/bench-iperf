@@ -57,6 +57,7 @@ it defaults to `"client"`.
 - ✅ All protocol/direction/mode combinations covered
 - ✅ The exact set of metric types logged matches `expected_metrics` (not just that *something* was logged)
 - ✅ Optional `expected_stream_count` asserts how many distinct `stream` breakout values were logged (guards the per-thread/`nthreads` breakout against silently collapsing back into one series)
+- ✅ Sample timestamps never extend past the actual test window (guards against timestamps advancing per output row instead of per real interval, which would stretch the series out by a factor of `nthreads`)
 
 ## Debugging Post-Processor Changes
 

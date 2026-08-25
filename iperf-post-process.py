@@ -249,7 +249,6 @@ def process_proto(data_file, times, names, omit, metrics):
     bitrate_div = 1
     sample_count = 0
     primary_metric = None
-    ts = times["begin"]
     bidir_mode = False
     # For bidirectional: accumulate samples by timestamp
     # Key: (begin_ts, end_ts), Value: {'tx-Gbps': value, 'rx-Gbps': value}
@@ -294,7 +293,6 @@ def process_proto(data_file, times, names, omit, metrics):
 
         if "sender" in line or "receiver" in line:
             debug_print(f"Skip line: {line}\n")
-            ts = times["begin"]
             rateunit = "none"
             continue
 
@@ -321,6 +319,8 @@ def process_proto(data_file, times, names, omit, metrics):
 
             # Find interval using X.XX-Y.YY pattern
             interval_val = None
+            interval_start = None
+            interval_end = None
             for col in columns:
                 if "-" in col and "." in col:
                     try:
@@ -331,6 +331,8 @@ def process_proto(data_file, times, names, omit, metrics):
                             sec_delta = end - start
                             if sec_delta > 0:
                                 interval_val = sec_delta * SEC_TO_MSEC
+                                interval_start = start
+                                interval_end = end
                                 break
                     except ValueError:
                         continue
@@ -361,7 +363,12 @@ def process_proto(data_file, times, names, omit, metrics):
                 rateunit = columns[bitrate_unit_idx]
                 bitrate_div = get_rate_divisor(rateunit)
 
-            ts_end = ts + interval_val - 1
+            # Derive timestamps from this row's own interval bounds (relative
+            # to the test's begin time) rather than an incrementing counter --
+            # with nthreads > 1 there are multiple rows per real interval, and
+            # incrementing per-row stretched the series out by a factor of N.
+            ts = times["begin"] + interval_start * SEC_TO_MSEC
+            ts_end = times["begin"] + interval_end * SEC_TO_MSEC - 1
 
             # Find Lost/Total column by searching for X/Y pattern (receiver side)
             lost_total_idx = None
@@ -412,7 +419,6 @@ def process_proto(data_file, times, names, omit, metrics):
             debug_print(f"begin: int {ts}, end: int {ts_end}\n")
             metrics.log_sample("0", desc, sample_names, s)
             sample_count += 1
-            ts = ts + interval_val
 
         elif not is_udp_line and re.search(r'sec\s', line):
             # TCP
@@ -436,6 +442,8 @@ def process_proto(data_file, times, names, omit, metrics):
 
             # Find interval using X.XX-Y.YY pattern
             interval_val = None
+            interval_start = None
+            interval_end = None
             for col in columns:
                 if "-" in col and "." in col:
                     try:
@@ -446,6 +454,8 @@ def process_proto(data_file, times, names, omit, metrics):
                             sec_delta = end - start
                             if sec_delta > 0:
                                 interval_val = sec_delta * SEC_TO_MSEC
+                                interval_start = start
+                                interval_end = end
                                 break
                     except ValueError:
                         continue
@@ -476,7 +486,12 @@ def process_proto(data_file, times, names, omit, metrics):
                 rateunit = columns[bitrate_unit_idx]
                 bitrate_div = get_rate_divisor(rateunit)
 
-            ts_end = ts + interval_val - 1
+            # Derive timestamps from this row's own interval bounds (relative
+            # to the test's begin time) rather than an incrementing counter --
+            # with nthreads > 1 there are multiple rows per real interval, and
+            # incrementing per-row stretched the series out by a factor of N.
+            ts = times["begin"] + interval_start * SEC_TO_MSEC
+            ts_end = times["begin"] + interval_end * SEC_TO_MSEC - 1
 
             # Find retry value: search for integer AFTER bits/sec unit and BEFORE last 2 columns
             # Pattern: ... Kbits/sec <retry> <cwnd_value> <cwnd_unit>
@@ -535,7 +550,6 @@ def process_proto(data_file, times, names, omit, metrics):
                 metrics.log_sample("0", desc, sample_names, s)
 
             sample_count += 1
-            ts = ts + interval_val
 
     if sample_count == 0:
         primary_metric = "rx-Gbps"
