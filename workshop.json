@@ -35,7 +35,7 @@
 		            "unpack": "tar -xzf 3.16.tar.gz",
 		            "get_dir": "tar -tzf 3.16.tar.gz | head -n 1",
 		            "commands": [
-			            "CFLAGS=\"-ggdb\" ./configure",
+			            "CFLAGS=\"-ggdb -std=gnu17\" ./configure",
 			            "make",
 			            "make install",
 			            "ldconfig",
