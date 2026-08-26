@@ -1,0 +1,7 @@
+{
+  "protocol": "tcp",
+  "role": "client",
+  "expected_metrics": ["tx-Gbps", "tx-retry/sec"],
+  "expected_stream_count": 4,
+  "description": "TCP sender with --parallel 4 (nthreads=4) - iperf3 3.16+ spawns one OS thread per stream; each stream's tx-Gbps/tx-retry/sec should be logged as its own 'stream' breakout series, not summed"
+}

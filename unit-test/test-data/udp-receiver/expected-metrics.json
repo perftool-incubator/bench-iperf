@@ -1,5 +1,6 @@
 {
   "protocol": "udp",
+  "role": "server",
   "expected_metrics": ["rx-Gbps", "rx-lost/sec", "rx-pps"],
   "description": "UDP receiver - should generate rx-Gbps, rx-lost/sec, and rx-pps"
 }

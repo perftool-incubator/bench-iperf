@@ -1,0 +1,89 @@
+BEGIN-TS-0 1787347883.035043754
+-----------------------------------------------------------
+Server listening on 30002 (test #1)
+-----------------------------------------------------------
+-----------------------------------------------------------
+Server listening on 30002 (test #2)
+-----------------------------------------------------------
+Accepted connection from 192.168.12.212, port 53344
+[  5] local 192.168.12.212 port 30002 connected to 192.168.12.212 port 53348
+[  8] local 192.168.12.212 port 30002 connected to 192.168.12.212 port 53352
+[ 10] local 192.168.12.212 port 30002 connected to 192.168.12.212 port 53360
+[ 12] local 192.168.12.212 port 30002 connected to 192.168.12.212 port 53362
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-1.00   sec  4.66 GBytes  39988640 Kbits/sec                  
+[  8]   0.00-1.00   sec  3.99 GBytes  34266842 Kbits/sec                  
+[ 10]   0.00-1.00   sec  5.17 GBytes  44327629 Kbits/sec                  
+[ 12]   0.00-1.00   sec  3.63 GBytes  31163264 Kbits/sec                  
+[SUM]   0.00-1.00   sec  17.5 GBytes  149749733 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   1.00-2.00   sec  4.66 GBytes  40039455 Kbits/sec                  
+[  8]   1.00-2.00   sec  4.96 GBytes  42598573 Kbits/sec                  
+[ 10]   1.00-2.00   sec  4.93 GBytes  42318885 Kbits/sec                  
+[ 12]   1.00-2.00   sec  4.99 GBytes  42832903 Kbits/sec                  
+[SUM]   1.00-2.00   sec  19.5 GBytes  167787727 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   2.00-3.00   sec  4.97 GBytes  42671572 Kbits/sec                  
+[  8]   2.00-3.00   sec  5.05 GBytes  43338466 Kbits/sec                  
+[ 10]   2.00-3.00   sec  5.22 GBytes  44839981 Kbits/sec                  
+[ 12]   2.00-3.00   sec  4.76 GBytes  40881439 Kbits/sec                  
+[SUM]   2.00-3.00   sec  20.0 GBytes  171734652 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   3.00-4.00   sec  4.16 GBytes  35739682 Kbits/sec                  
+[  8]   3.00-4.00   sec  5.01 GBytes  42975551 Kbits/sec                  
+[ 10]   3.00-4.00   sec  5.06 GBytes  43449816 Kbits/sec                  
+[ 12]   3.00-4.00   sec  3.85 GBytes  33003766 Kbits/sec                  
+[SUM]   3.00-4.00   sec  18.1 GBytes  155167762 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   4.00-5.00   sec  5.15 GBytes  44262772 Kbits/sec                  
+[  8]   4.00-5.00   sec  5.24 GBytes  45052559 Kbits/sec                  
+[ 10]   4.00-5.00   sec  3.31 GBytes  28458727 Kbits/sec                  
+[ 12]   4.00-5.00   sec  2.36 GBytes  20272855 Kbits/sec                  
+[SUM]   4.00-5.00   sec  16.1 GBytes  138047071 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   5.00-6.00   sec  5.06 GBytes  43484535 Kbits/sec                  
+[  8]   5.00-6.00   sec  5.34 GBytes  45888738 Kbits/sec                  
+[ 10]   5.00-6.00   sec  2.54 GBytes  21838802 Kbits/sec                  
+[ 12]   5.00-6.00   sec  2.49 GBytes  21380743 Kbits/sec                  
+[SUM]   5.00-6.00   sec  15.4 GBytes  132593752 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   6.00-7.00   sec  5.06 GBytes  43419149 Kbits/sec                  
+[  8]   6.00-7.00   sec  5.31 GBytes  45578360 Kbits/sec                  
+[ 10]   6.00-7.00   sec  5.07 GBytes  43507439 Kbits/sec                  
+[ 12]   6.00-7.00   sec  2.52 GBytes  21679156 Kbits/sec                  
+[SUM]   6.00-7.00   sec  18.0 GBytes  154180915 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   7.00-8.00   sec  5.06 GBytes  43496055 Kbits/sec                  
+[  8]   7.00-8.00   sec  5.21 GBytes  44771127 Kbits/sec                  
+[ 10]   7.00-8.00   sec  5.38 GBytes  46174366 Kbits/sec                  
+[ 12]   7.00-8.00   sec  2.38 GBytes  20485370 Kbits/sec                  
+[SUM]   7.00-8.00   sec  18.0 GBytes  154931233 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   8.00-9.00   sec  5.14 GBytes  44158547 Kbits/sec                  
+[  8]   8.00-9.00   sec  5.28 GBytes  45334001 Kbits/sec                  
+[ 10]   8.00-9.00   sec  5.30 GBytes  45539296 Kbits/sec                  
+[ 12]   8.00-9.00   sec  2.54 GBytes  21774633 Kbits/sec                  
+[SUM]   8.00-9.00   sec  18.3 GBytes  156803152 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]   9.00-10.00  sec  5.10 GBytes  43801312 Kbits/sec                  
+[  8]   9.00-10.00  sec  4.96 GBytes  42586016 Kbits/sec                  
+[ 10]   9.00-10.00  sec  5.27 GBytes  45236237 Kbits/sec                  
+[ 12]   9.00-10.00  sec  3.71 GBytes  31918783 Kbits/sec                  
+[SUM]   9.00-10.00  sec  19.0 GBytes  163542798 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[  5]  10.00-10.00  sec   640 KBytes  11323715 Kbits/sec                  
+[  8]  10.00-10.00  sec  0.00 Bytes  0.00 Kbits/sec                  
+[ 10]  10.00-10.00  sec   384 KBytes  7133170 Kbits/sec                  
+[ 12]  10.00-10.00  sec   128 KBytes  2526689 Kbits/sec                  
+[SUM]  10.00-10.00  sec  1.12 MBytes  20382687 Kbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[  5]   0.00-10.00  sec  49.0 GBytes  42104370 Kbits/sec                  receiver
+[  8]   0.00-10.00  sec  50.3 GBytes  43236687 Kbits/sec                  receiver
+[ 10]   0.00-10.00  sec  47.2 GBytes  40570500 Kbits/sec                  receiver
+[ 12]   0.00-10.00  sec  33.2 GBytes  28539527 Kbits/sec                  receiver
+[SUM]   0.00-10.00  sec   180 GBytes  154451083 Kbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 30002 (test #3)
+-----------------------------------------------------------
+END-TS-0 1787347942.645130484

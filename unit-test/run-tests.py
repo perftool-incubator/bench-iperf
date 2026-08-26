@@ -6,6 +6,7 @@ Runs the post-processor against test samples and verifies expected metrics are g
 """
 
 import json
+import lzma
 import os
 import subprocess
 import sys
@@ -42,28 +43,33 @@ def run_test_case(test_dir):
     print(f"  Description: {expected.get('description', 'N/A')}")
     print(f"  Expected metrics: {expected['expected_metrics']}")
 
-    # Copy test files to the real script directory (where wrapper will run)
-    # Clean up any previous test artifacts first
-    for artifact in ["iperf-client-result.txt", "iperf-server-result.txt"]:
-        for f in REAL_SCRIPT_DIR.glob(artifact):
-            f.unlink()
-    pp_dir = REAL_SCRIPT_DIR / "postprocess"
-    if pp_dir.exists():
-        shutil.rmtree(pp_dir)
-
-    # Copy input files to real script directory
-    if (test_dir / "iperf-client-result.txt").exists():
-        shutil.copy(test_dir / "iperf-client-result.txt", REAL_SCRIPT_DIR)
-    if (test_dir / "iperf-server-result.txt").exists():
-        shutil.copy(test_dir / "iperf-server-result.txt", REAL_SCRIPT_DIR)
-
+    # The post-processor picks client vs. server mode by checking which
+    # result file exists in its cwd, checking for a client file first. A
+    # flat copy of both files into one directory would always resolve to
+    # client mode, silently skipping server-mode testing whenever a case
+    # provides both files (needed so server mode can read the client's
+    # timestamps). Lay out a real sample-1/<role>/1/ tree instead, matching
+    # how rickshaw actually invokes this script, so role is unambiguous.
+    role = expected.get('role', 'client')
+    run_dir = Path(tempfile.mkdtemp(prefix="iperf-unit-test-"))
     try:
+        client_dir = run_dir / "sample-1" / "client" / "1"
+        server_dir = run_dir / "sample-1" / "server" / "1"
+        client_dir.mkdir(parents=True)
+        server_dir.mkdir(parents=True)
+
+        if (test_dir / "iperf-client-result.txt").exists():
+            shutil.copy(test_dir / "iperf-client-result.txt", client_dir)
+        if (test_dir / "iperf-server-result.txt").exists():
+            shutil.copy(test_dir / "iperf-server-result.txt", server_dir)
+
+        cwd = server_dir if role == 'server' else client_dir
+
         # Determine protocol arg
         protocol = expected.get('protocol', 'tcp')
 
         # Run post-processor using Python 3.11 venv (no container needed)
         # Set TOOLBOX_HOME and PYTHONPATH for imports to work
-        # Use /opt/crucible directly since REAL_SCRIPT_DIR resolves symlinks
         venv_python = VENV_DIR / "bin" / "python3"
         script_path = REAL_SCRIPT_DIR / "iperf-post-process.py"
         toolbox_home = Path("/opt/crucible/subprojects/core/toolbox")
@@ -79,7 +85,7 @@ def run_test_case(test_dir):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
-            cwd=str(REAL_SCRIPT_DIR),
+            cwd=str(cwd),
             env=env
         )
 
@@ -114,21 +120,87 @@ def run_test_case(test_dir):
                 if result.stderr:
                     print(f"  STDERR:\n{result.stderr}")
                 return False
-            else:
-                # Expected success and got success marker
-                print(f"  PASS ✓ (post-processor completed successfully)")
-                print(f"  Note: Expected metrics {expected['expected_metrics']} (not verified due to container isolation)")
-                return True
+
+            metric_types, stream_ids = read_metric_metadata(cwd / "postprocess")
+
+            expected_types = set(expected['expected_metrics'])
+            if metric_types != expected_types:
+                print(f"  FAIL ✗ Metric types {sorted(metric_types)} != expected {sorted(expected_types)}")
+                return False
+
+            expected_stream_count = expected.get('expected_stream_count')
+            if expected_stream_count is not None and len(stream_ids) != expected_stream_count:
+                print(f"  FAIL ✗ Found {len(stream_ids)} distinct stream(s) {sorted(stream_ids)}, expected {expected_stream_count}")
+                return False
+
+            # Guard against timestamps stretching beyond the actual test
+            # window (e.g. a per-row instead of per-interval ts increment
+            # would multiply the series length by nthreads).
+            window = get_test_window_ms(test_dir)
+            if window is not None:
+                begin_ms, end_ms = window
+                max_sample_end = get_max_sample_end(cwd / "postprocess")
+                tolerance_ms = 2000
+                if max_sample_end is not None and max_sample_end > end_ms + tolerance_ms:
+                    print(f"  FAIL ✗ Max sample end {max_sample_end} exceeds test window end "
+                          f"{end_ms} (+{tolerance_ms}ms tolerance) - timestamps may be stretched")
+                    return False
+
+            print(f"  PASS ✓ (metric types {sorted(metric_types)} match" +
+                  (f", {len(stream_ids)} stream(s) {sorted(stream_ids)})" if stream_ids else ")"))
+            return True
 
     finally:
-        # Clean up test files from real script directory
-        for artifact in ["iperf-client-result.txt", "iperf-server-result.txt"]:
-            artifact_path = REAL_SCRIPT_DIR / artifact
-            if artifact_path.exists():
-                artifact_path.unlink()
-        pp_dir = REAL_SCRIPT_DIR / "postprocess"
-        if pp_dir.exists():
-            shutil.rmtree(pp_dir)
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def read_metric_metadata(pp_dir):
+    """Return (set of metric types, set of stream breakout values) from a postprocess/ dir."""
+    meta_file = pp_dir / "metric-data-0.json.xz"
+    if not meta_file.exists():
+        return set(), set()
+    with lzma.open(meta_file, "rt") as f:
+        metric_types = json.load(f)
+    types = {m["desc"]["type"] for m in metric_types}
+    streams = {m["names"]["stream"] for m in metric_types if "stream" in m["names"]}
+    return types, streams
+
+
+def get_test_window_ms(test_dir):
+    """Return (begin_ms, end_ms) parsed from BEGIN-TS/END-TS in the client
+    result file - the same file iperf-post-process.py always reads
+    timestamps from, for both client and server mode."""
+    client_file = test_dir / "iperf-client-result.txt"
+    if not client_file.exists():
+        return None
+    begin_ts = end_ts = None
+    with open(client_file) as f:
+        for line in f:
+            if begin_ts is None and "BEGIN-TS" in line:
+                begin_ts = float(line.split()[1])
+            elif end_ts is None and "END-TS" in line:
+                end_ts = float(line.split()[1])
+    if begin_ts is None or end_ts is None:
+        return None
+    return begin_ts * 1000, end_ts * 1000
+
+
+def get_max_sample_end(pp_dir):
+    """Return the maximum 'end' timestamp across all logged samples in a
+    postprocess/ dir's CSV data, or None if there is no data."""
+    csv_file = pp_dir / "metric-data-0.csv.xz"
+    if not csv_file.exists():
+        return None
+    max_end = None
+    with lzma.open(csv_file, "rt") as f:
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) < 3:
+                continue
+            end = float(parts[2])
+            if max_end is None or end > max_end:
+                max_end = end
+    return max_end
 
 def main():
     """Run all tests"""

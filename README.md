@@ -138,7 +138,7 @@ Pin iperf processes and NIC interrupts to specific CPUs for consistent performan
         "common-params": [
           {
             "arg": "cpu-pin",
-            "vals": ["4,5,6,7"]
+            "vals": ["cpu:4-7"]
           }
         ]
       }
@@ -147,10 +147,40 @@ Pin iperf processes and NIC interrupts to specific CPUs for consistent performan
 }
 ```
 
+`cpu-pin` accepts:
+- `numa` / `cpu-numa` - pin to the interface's whole NUMA-node CPU pool (or a single CPU, respectively)
+- `cpu-numa:<N>` - auto-pick `N` CPUs from the interface's NUMA node, clamped (with a warning) if the node has fewer than `N`
+- `cpu:<list>` - an explicit CPU list/range (e.g. `cpu:4-7` or `cpu:4,5,6,7`)
+
 CPU pinning:
-- Pins iperf engine processes to specified CPUs
+- Pins the whole iperf3 process (all `nthreads` streams share the pool - iperf3 has no native per-thread CPU affinity, see [esnet/iperf#1738](https://github.com/esnet/iperf/issues/1738))
 - Pins NIC IRQs to the same CPU set for NUMA locality
 - Reduces jitter and improves measurement consistency
+
+### Multiple Streams (nthreads)
+
+Since iperf3 3.16, `-P`/`--parallel` runs each stream on its own OS thread. Set `nthreads` to run multiple parallel streams:
+
+```json
+{
+  "benchmarks": [
+    {
+      "name": "iperf",
+      "ids": [1],
+      "mv-params": {
+        "common-params": [
+          {
+            "arg": "nthreads",
+            "vals": ["4"]
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+Each stream's throughput is logged as its own `stream` breakout series (tagged with iperf3's own stream ID); CDM's `default-aggregation: sum` combines them into a total at query time.
 
 ## Key Files
 

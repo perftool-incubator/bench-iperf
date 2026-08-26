@@ -26,9 +26,10 @@ bitrate_range=
 max_loss_pct=0
 omit=0
 num_peers=0
+nthreads=1
 
 echo "opts before: $@"
-longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:,num-peers:"
+longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:,num-peers:,nthreads:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error "Unrecognized option specified"
@@ -119,6 +120,12 @@ while true; do
             echo "num-peers=$num_peers"
             shift
             ;;
+        --nthreads)     # number of parallel iperf3 streams (-P), one OS thread per stream since iperf3 3.16
+            shift;
+            nthreads=$1
+            echo "nthreads=$nthreads"
+            shift
+            ;;
         --)
             shift;
             break
@@ -140,8 +147,20 @@ if [ "$num_peers" -gt 0 ]; then
     fi
 fi
 
+# Split off an optional parameter after a ':', used by "cpu:<list>" (an
+# explicit CPU list/range) and "cpu-numa:<N>" (auto-pick N CPUs from the
+# interface's numa node).
+cpu_pin_param=""
+if echo "${cpu_pin}" | grep -q "^cpu:"; then
+    cpu_pin_param=$(echo "${cpu_pin}" | cut -d: -f2-)
+    cpu_pin="cpu"
+elif echo "${cpu_pin}" | grep -q "^cpu-numa:"; then
+    cpu_pin_param=$(echo "${cpu_pin}" | cut -d: -f2-)
+    cpu_pin="cpu-numa-n"
+fi
+
 case "${cpu_pin}" in
-    ""|"numa"|"cpu-numa")
+    ""|"numa"|"cpu-numa"|"cpu"|"cpu-numa-n")
 	;;
     *)
 	exit_error "unsupported cpu-pin value '${cpu_pin}'"
@@ -218,13 +237,13 @@ done
 if [ -e /sys/class/net/${ifname_numa_node_lookup}/device/numa_node ]; then
     ifname_numa_node=$(cat /sys/class/net/${ifname_numa_node_lookup}/device/numa_node)
     if [ "$ifname_numa_node" == "-1" ]; then
-        if [[ "${cpu_pin}" == "numa" || "${cpu_pin}" == "cpu-numa" ]]; then
+        if [[ "${cpu_pin}" == "numa" || "${cpu_pin}" == "cpu-numa" || "${cpu_pin}" == "cpu-numa-n" ]]; then
             exit_error "PCIe has no NUMA locality, but cpu-pin is ${cpu_pin}"
         fi
         # VM case, use numa 0
         ifname_numa_node=0
     fi
-elif [[ "${cpu_pin}" == "numa" || "${cpu_pin}" == "cpu-numa" ]]; then
+elif [[ "${cpu_pin}" == "numa" || "${cpu_pin}" == "cpu-numa" || "${cpu_pin}" == "cpu-numa-n" ]]; then
     exit_error "cannot determine numa node for interface '${ifname}' and cpu-pin is ${cpu_pin}"
 else
     # If there is no numa associated with ifname, just use numa 0.
@@ -267,11 +286,31 @@ case "${cpu_pin}" in
     "cpu-numa")
         assign-pin-cpu client ${ifname_numa_node_cpus}
         ;;
+    "cpu-numa-n")
+        # Auto-pick cpu_pin_param CPUs from the interface's numa node. iperf3
+        # has no native per-thread affinity (esnet/iperf#1738 is still open),
+        # so this pins the whole process to a CPU range and lets the kernel
+        # scheduler spread the nthreads streams across it.
+        available=$(echo "${ifname_numa_node_cpus}" | tr ',' '\n' | wc -l)
+        requested="${cpu_pin_param}"
+        if [ "${requested}" -gt "${available}" ]; then
+            echo "WARNING: cpu-pin requested ${requested} cpus but numa node ${ifname_numa_node} only has ${available}; clamping to ${available}"
+            requested="${available}"
+        fi
+        pool=$(echo "${ifname_numa_node_cpus}" | tr ',' '\n' | head -n "${requested}" | paste -sd, -)
+        cpu_pin_cmd="taskset --cpu-list ${pool}"
+        ;;
+    "cpu")
+        cpu_pin_cmd="taskset --cpu-list ${cpu_pin_param}"
+        ;;
 esac
 
 options="--format k -c $remotehost -p $control_port $protocol $length"
 if [ "$omit" -ne 0 ]; then
     options+=" --omit $omit"
+fi
+if [ "$nthreads" -gt 1 ]; then
+    options+=" --parallel $nthreads"
 fi
 
 #options+=" --cport $data_port"
