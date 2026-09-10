@@ -29,7 +29,7 @@ cd /opt/crucible/subprojects/benchmarks/iperf/unit-test
 
 ## Test Cases
 
-The test suite includes 10 test cases with real production data:
+The test suite includes 12 test cases with real production data:
 
 1. **missing-timestamps** - Validates failure detection (missing BEGIN-TS/END-TS)
 2. **tcp-unidirectional-client** - TCP sender with tx-Gbps and tx-retry/sec
@@ -41,6 +41,12 @@ The test suite includes 10 test cases with real production data:
 8. **tcp-hunter-mode** - Multiple bitrate runs with PASS/FAIL selection
 9. **tcp-parallel-streams-client** - TCP sender with `--parallel 4` (nthreads=4, iperf3 3.16+); each stream logged as its own `stream` breakout
 10. **tcp-parallel-streams-server** - TCP receiver side of the same 4-stream run
+11. **udp-hunter-short-probes** - Two-phase hunter client result: PROBE-OK/
+    PROBE-DROP probe blocks plus a PASS confirm block; verifies the two-phase
+    marker lines parse cleanly and the client logs tx-Gbps
+12. **udp-hunter-confirm-reclaim** - Hunter client result with PROBE blocks and
+    two PASS confirm blocks (confirm then a higher reclaim); verifies multiple
+    PASS/PROBE blocks parse cleanly and the client logs tx-Gbps
 
 Each case runs in a `sample-1/<role>/1/` directory (matching how rickshaw
 actually lays out engine working directories) so client-mode and
@@ -93,7 +99,7 @@ cd /tmp/iperf-debug/sample-1/server/1
 
 - Make fixes to `iperf-post-process.py`
 - Re-run `./run-tests.py` from unit-test directory
-- All 10 tests should pass before committing changes
+- All 12 tests should pass before committing changes
 
 ### 4. Add new test cases for bug fixes
 
@@ -122,7 +128,7 @@ EOF
 
 **Benefits:**
 - ✅ Fast feedback loop (no need for full crucible runs)
-- ✅ Tests 10 different scenarios automatically
+- ✅ Tests 12 different scenarios automatically
 - ✅ Catches regressions before they reach production
 - ✅ Consistent local test environment
 

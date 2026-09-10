@@ -243,7 +243,27 @@ END-TS-0 1779563542.253489588
 ## Hunter Mode Processing
 
 ### Overview
-Hunter mode runs multiple iperf tests with different bitrates to find the optimal throughput without packet loss.
+Hunter mode runs multiple iperf tests with different bitrates to find the highest throughput that stays under a loss threshold (`--max-loss-pct`).
+
+### Two-Phase Hunting (probe + confirm)
+
+`iperf-client` runs the hunt in two phases (see the Hunter Mode section in the
+top-level `README.md` for the user-facing description):
+
+1. **Probe (search) phase** — the binary search runs each trial at a short
+   duration (`--hunt-probe-time`, default 8s). Its result lines are marked
+   `PROBE-OK:` / `PROBE-DROP:`.
+2. **Confirm phase** — the found rate is re-run at the full `--time`, bounded to
+   `--hunt-confirm-attempts` (K, default 1) runs. Its result lines are marked
+   `PASS:` / `FAIL:`.
+
+**Why this matters to the post-processor:** the selection algorithm below keys
+off the substring `"PASS"`. The probe markers `PROBE-OK` / `PROBE-DROP` are
+chosen specifically so they do **not** contain `"PASS"`, so short probes are
+never selected as winners — only full-duration confirm `PASS` runs can win. The
+`BEGIN-TS`/`END-TS` run counter still increments for every run (probes and
+confirm alike), so a selected run number correctly maps to its `BEGIN-TS-N`
+block. No post-processor change was needed to support the two-phase design.
 
 ### Client-Side Hunter Logic
 

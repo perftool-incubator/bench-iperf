@@ -9,6 +9,14 @@ function debug_pr {
 
 max_percent=0
 h_iter=0
+[ -z "$conn" ] && conn=0
+[ -z "$hunt_phase" ] && hunt_phase="probe"
+[ -z "$hunt_final" ] && hunt_final=0
+# hunt_pinfail = the lowest rate that capped the probe search (the search's
+# upper bound at termination). It is the most valuable "reclaim" candidate for
+# the confirm phase: it is exactly the rate a noisy short-probe false-DROP
+# would have rejected. When no probe failed it holds the (untested) range end.
+[ -z "$hunt_pinfail" ] && hunt_pinfail=0
 
 # generic-binary-hunter - binary search the result of a command .
 # Arguments: <low> <high> <cmd>
@@ -23,6 +31,8 @@ function generic-binary-hunter {
 
     h_iter=$((h_iter+1))
     if [ $low -gt $(($high - 2)) ]; then
+        hunt_final=$low
+        hunt_pinfail=$high
         echo Final answer: $low
         return   # final result
     fi
@@ -86,7 +96,7 @@ function generic-hunter {
     generic-binary-hunter $begin $end "$@"
 } 
 
-# iperf-drop analyzer -  Examine results for drop 
+# iperf-drop analyzer -  Examine results for drop
 # Arguments: none
 # Return: analyzed_result
 #
@@ -101,7 +111,7 @@ function iperf-drop-analyzer {
     #   - - - - - - - - - - - - - - - - - - - - - - - - -
     #   [ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
     #   [  5]   0.00-30.00  sec  17.5 GBytes  5.00 Gbits/sec  0.012 ms  148/1144389 (0.013%)  receiver
-    pwd 
+    pwd
     local __tuple
     local Lost
     local Total
@@ -109,24 +119,51 @@ function iperf-drop-analyzer {
     pattern="receiver"
 
     #
-    # Note, sender's Total do not match receiver's Total even when iperf says 
-    # 0% drop. iperf3 itself also computes % drop using receiver stats ONLY. 
+    # Note, sender's Total do not match receiver's Total even when iperf says
+    # 0% drop. iperf3 itself also computes % drop using receiver stats ONLY.
     #
     receiver_line=$(perl -e 'print reverse <>' $rfile | grep -m 1 "receiver")
-    debug_pr receiver_line=$line
+    debug_pr receiver_line=$receiver_line
+
+    if [ -z "$receiver_line" ]; then
+        if [ "$hunt_phase" == "probe" ]; then
+            echo "PROBE-DROP: <empty receiver line>" >> iperf-client-result.txt
+            analyzed_result=-1
+        else
+            echo "FAIL: <empty receiver line>" >> iperf-client-result.txt
+            analyzed_result=-1
+        fi
+        return
+    fi
 
     #column 11 is Lost/Total
     __tuple="$(echo $receiver_line | awk '{print $11}')"
     Lost=$(echo $__tuple | awk -F'/' '{print $1}')
     Total=$(echo $__tuple | awk -F'/' '{print $2}')
 
-    if [ "$Total" -eq "0"  ]; then
+    if [ -z "$Total" ] || ! echo "$Total" | grep -Eq '^[0-9]+$'; then
+        if [ "$hunt_phase" == "probe" ]; then
+            echo "PROBE-DROP: $receiver_line" >> iperf-client-result.txt
+            analyzed_result=-1
+        else
+            echo "FAIL: $receiver_line" >> iperf-client-result.txt
+            analyzed_result=-1
+        fi
+    elif [ "$Total" -eq "0" ]; then
         # UDP must have collapsed. No pkt arrived at the receive side.
         # This could happen when ipfrag was overwhelmed.
-        echo "FAIL: $receiver_line"  >> iperf-client-result.txt
+        if [ "$hunt_phase" == "probe" ]; then
+            echo "PROBE-DROP: $receiver_line" >> iperf-client-result.txt
+        else
+            echo "FAIL: $receiver_line"  >> iperf-client-result.txt
+        fi
         analyzed_result=-1
     elif [ "$Lost" -eq "0" ] ; then
-        echo "PASS: $receiver_line"  >> iperf-client-result.txt
+        if [ "$hunt_phase" == "probe" ]; then
+            echo "PROBE-OK: $receiver_line" >> iperf-client-result.txt
+        else
+            echo "PASS: $receiver_line"  >> iperf-client-result.txt
+        fi
         analyzed_result=0
     else
         # Compare drops against max-drop-pct limit.
@@ -140,11 +177,19 @@ function iperf-drop-analyzer {
         # The "!" is needed because the logic in awk boolean tests
         # is the opposite of the one in shell exit code tests
         if ! awk "BEGIN{ exit ($calc_percent <= $max_percent) }"; then
-            # Drops were less than max-drop-pct. 
-            echo "PASS: $receiver_line" >> iperf-client-result.txt
+            # Drops were less than max-drop-pct.
+            if [ "$hunt_phase" == "probe" ]; then
+                echo "PROBE-OK: $receiver_line" >> iperf-client-result.txt
+            else
+                echo "PASS: $receiver_line" >> iperf-client-result.txt
+            fi
             analyzed_result=0
         else
-            echo "FAIL: $receiver_line"  >> iperf-client-result.txt
+            if [ "$hunt_phase" == "probe" ]; then
+                echo "PROBE-DROP: $receiver_line"  >> iperf-client-result.txt
+            else
+                echo "FAIL: $receiver_line"  >> iperf-client-result.txt
+            fi
             analyzed_result=$Lost
         fi
     fi
@@ -152,19 +197,32 @@ function iperf-drop-analyzer {
 
 # iperf-drop-hunter - run iperf at a specified bitrate and examine for packet drops.
 # Arguments:  <rate-unit> <tx-rate-number>
-# Global Argument: cmd 
+# Global Arguments: cmd, probe_cmd
 #   The fully loaded cmd i.e 'iperf3 --format k -c <> -p <> --udp --get-server-output'
-#   assembled by iperf-client 
+#   assembled by iperf-client; probe_cmd is the short-duration version
 # Return: 0 - no drop - hunter to raise target
 #         1 - drops   - hunter to low target
 #
 function iperf-drop-hunter {
     debug_pr iperf-drop-hunter @116 enter: $@
-    new_cmd="$cmd --bitrate $2$1" 
-    echo iperf-drop-hunter @119 new_cmd: $new_cmd
-    echo BEGIN-TS-$h_iter $(date +%s.%N) >> iperf-client-result.txt
-    ${new_cmd} 2>&1 | tee -a iperf-client-result.txt
-    echo END-TS-$h_iter $(date +%s.%N) >> iperf-client-result.txt
+    # Derive the connection ordinal from the result file rather than a shell
+    # variable: generic-binary-hunter runs this function in a subshell
+    # ( eval $@ $mid ), so any increment to a shell global would be discarded
+    # on subshell exit. Counting the BEGIN-TS markers already written (one per
+    # connection, probes AND confirm) is immune to that and guarantees
+    # BEGIN-TS-N == iperf3 server-side (test #N).
+    conn=$(( $(grep -c '^BEGIN-TS-' iperf-client-result.txt) + 1 ))
+
+    if [ "$hunt_phase" == "probe" ]; then
+        run_cmd="$probe_cmd --bitrate $2$1"
+    else
+        run_cmd="$cmd --bitrate $2$1"
+    fi
+
+    echo iperf-drop-hunter @119 new_cmd: $run_cmd
+    echo BEGIN-TS-$conn $(date +%s.%N) >> iperf-client-result.txt
+    ${run_cmd} 2>&1 | tee -a iperf-client-result.txt
+    echo END-TS-$conn $(date +%s.%N) >> iperf-client-result.txt
     iperf-drop-analyzer
     if [ "$analyzed_result" -ne "0" ]; then
         debug_pr @125 drop=$__result FAIL
