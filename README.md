@@ -62,15 +62,23 @@ fixed `--bitrate`) plus a `--max-loss-pct` limit:
           { "arg": "protocol",        "vals": ["udp"] },
           { "arg": "time",            "vals": ["30"] },
           { "arg": "bitrate-range",   "vals": ["100M-2500M"] },
-          { "arg": "max-loss-pct",    "vals": ["0.1"] },
-          { "arg": "hunt-probe-time", "vals": ["8"] },
-          { "arg": "hunt-confirm-attempts", "vals": ["1"] }
+          { "arg": "max-loss-pct",    "vals": ["0.1"], "role": "client" },
+          { "arg": "hunt-probe-time", "vals": ["8"],   "role": "client" },
+          { "arg": "hunt-confirm-attempts", "vals": ["1"], "role": "client" }
         ]
       }
     }
   ]
 }
 ```
+
+> **These hunt knobs are client-side.** `max-loss-pct`, `hunt-probe-time`, and
+> `hunt-confirm-attempts` only affect the client's search/confirm loop; the server
+> never acts on them. mv-params default an unroled arg to the **client**, so they
+> already reach only the client — the explicit `"role": "client"` above just makes
+> that intent clear. Do **not** give them `"role": "all"`: the server's option
+> parser doesn't know them and would abort. (`bitrate-range` is `role: all`
+> because the server does read it.)
 
 #### How it works: two phases
 
@@ -100,6 +108,45 @@ Result lines are marked so the post-processor can tell the two phases apart:
 The post-processor selects the **highest-bitrate `PASS`** as the winner. Probe
 lines deliberately avoid the substring `PASS`, so they are never selected — only
 full-duration confirm runs can win.
+
+If **no** confirm run passes (every full-duration confirm exceeds
+`--max-loss-pct`), the post-processor **fails the sample** rather than publishing
+a result. It does *not* fall back to the over-threshold confirm — doing so would
+report a FAILED (over-loss) rate as if it were a valid measured throughput, which
+is especially likely with `hunt-confirm-attempts=1` where the single confirm is
+the only full-duration run. A failed sample is dropped from the aggregate; if
+every sample fails, revisit the range/`--max-loss-pct` or the generator ceiling.
+
+#### Choosing `hunt-probe-time` (why 8s is a safe default)
+
+The probe duration is a **search-speed vs. probe-fidelity** tradeoff, and the
+design deliberately **decouples probe fidelity from result correctness**:
+
+- A probe's only job is to steer the binary search **direction** (does this rate
+  lose or not). The search bounds tolerate an occasional wrong probe — the next
+  step re-narrows around it.
+- The **confirm** re-runs the found rate at the **full** `time` and is the sole
+  authority for the published number. So a probe that is too optimistic (a short
+  run under-reporting sustained loss) does **not** publish a bad rate: the confirm
+  at that rate simply FAILs, and (see above) a failed confirm **fails the sample**
+  rather than publishing an over-threshold result.
+
+`8s` is chosen as a floor above UDP steady-state: single-stream UDP needs a few
+seconds to ramp and fill buffers, so probes shorter than ~5s read transients, not
+sustained loss. 8s (plus `omit`) clears that ramp while keeping the search fast.
+
+Raising `hunt-probe-time` helps **only when the sender produces a repeatable
+rate** and you are resolving a genuine, sharp loss cliff — a longer probe then
+averages over more of a *stable* signal. It does **not** cure a generator whose
+per-run output itself varies: multithreaded iperf3 (3.16+) single-stream UDP can
+swing run-to-run (different worker-thread/core placement) regardless of probe
+length, so a 30s probe is no more decisive than an 8s one. When the generator is
+that noisy, probe duration is the wrong lever — the search may land differently
+each run, but correctness is still protected: a bad rate FAILs its confirm and
+the sample fails rather than publishing. If you need repeatable hunt *values*,
+stabilize the generator itself; lengthening the probe will not do it. The cost of
+leaving `hunt-probe-time` low is at worst a wasted confirm / failed sample, never
+a wrong published rate.
 
 #### Confirm attempts (K) and the K=1 default
 

@@ -141,7 +141,13 @@ function iperf-drop-analyzer {
     Lost=$(echo $__tuple | awk -F'/' '{print $1}')
     Total=$(echo $__tuple | awk -F'/' '{print $2}')
 
-    if [ -z "$Total" ] || ! echo "$Total" | grep -Eq '^[0-9]+$'; then
+    # Both Lost and Total must be present and numeric before any arithmetic /
+    # integer test below. Validating only Total is not enough: a non-numeric
+    # Lost makes `[ "$Lost" -eq 0 ]` error out (falls through), and the later
+    # `Lost*100/Total` awk coerces the bad Lost to 0, so a malformed line would
+    # be wrongly reported as PASS/PROBE-OK. Treat any malformed field as a drop.
+    if [ -z "$Total" ] || ! echo "$Total" | grep -Eq '^[0-9]+$' || \
+       [ -z "$Lost" ] || ! echo "$Lost" | grep -Eq '^[0-9]+$'; then
         if [ "$hunt_phase" == "probe" ]; then
             echo "PROBE-DROP: $receiver_line" >> iperf-client-result.txt
             analyzed_result=-1

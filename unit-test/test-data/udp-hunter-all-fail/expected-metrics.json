@@ -1,0 +1,7 @@
+{
+  "protocol": "udp",
+  "should_fail": true,
+  "extra_args": ["--bitrate-range=100M-2500M", "--max-loss-pct=0.1"],
+  "expected_metrics": [],
+  "description": "UDP hunter client result where every confirm run FAILs the loss threshold (no PASS line). The post-processor must fail the sample instead of falling back to 'use last run', which would publish the over-threshold FAILED confirm as a valid rate. Regression guard for the K=1 failed-confirm-published bug."
+}
