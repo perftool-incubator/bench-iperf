@@ -2,6 +2,8 @@
 # vim: autoindent tabstop=4 shiftwidth=4 expandtab softtabstop=4 filetype=bash
 # -*- mode: sh; indent-tabs-mode: nil; sh-basic-offset: 4 -*-
 
+. /usr/bin/iperf-base || (echo "/usr/bin/iperf-base not found"; exit 1)
+
 #exec >iperf-runtime-stderrout.txt
 #exec 2>&1
 
@@ -52,16 +54,8 @@ while true; do
 done
 
 # If passthru, use passthu time. 
-if [ "$pt_opts" != "" ]; then
-    # If passthru has -t option, it overrides mv-param $time value
-    # strip ',' from the pt_opts string
-    passthru=$(echo "$pt_opts" | sed 's/,/ /g')
-    for p in ${passthru}; do
-        if echo "$p" | grep -Eq '\-t[0-9]'; then
-            time=$(echo $p | sed 's/-t//g')
-            break
-        fi
-    done
+if passthru_time=$(iperf_get_passthru_time "$pt_opts"); then
+    time="$passthru_time"
 fi
 
 if [ "$bitrate_range" != "" ]; then
@@ -83,4 +77,3 @@ fi
 # Set T/O time 2X the compute time.
 time=$(echo $time | awk '{printf "%d\n", $1*2}')
 echo $time
-
