@@ -1,0 +1,91 @@
+HUNTING begin:
+BEGIN-TS-1 1779448715.827976677
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 40609 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  2.00 MBytes  16000 Kbits/sec  1800
+[  5]   1.00-2.00   sec  2.00 MBytes  16000 Kbits/sec  1800
+[  5]   2.00-3.00   sec  2.00 MBytes  16000 Kbits/sec  1800
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-3.00   sec  6.00 MBytes  16000 Kbits/sec  0.000 ms  0/5400 (0%)  sender
+[  5]   0.00-3.00   sec  6.00 MBytes  16000 Kbits/sec  0.021 ms  0/5400 (0%)  receiver
+
+iperf Done.
+END-TS-1 1779448718.839584261
+PROBE-OK: [  5]   0.00-3.00   sec  6.00 MBytes  16000 Kbits/sec  0.021 ms  0/5400 (0%)  receiver
+BEGIN-TS-2 1779448718.857562710
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 42260 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  3.00 MBytes  24000 Kbits/sec  2700
+[  5]   1.00-2.00   sec  3.00 MBytes  24000 Kbits/sec  2700
+[  5]   2.00-3.00   sec  3.00 MBytes  24000 Kbits/sec  2700
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-3.00   sec  9.00 MBytes  24000 Kbits/sec  0.000 ms  0/8100 (0%)  sender
+[  5]   0.00-3.00   sec  9.00 MBytes  24000 Kbits/sec  0.010 ms  0/8100 (0%)  receiver
+
+iperf Done.
+END-TS-2 1779448721.867853344
+PROBE-OK: [  5]   0.00-3.00   sec  9.00 MBytes  24000 Kbits/sec  0.010 ms  0/8100 (0%)  receiver
+BEGIN-TS-3 1779448721.885925646
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 39330 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  2.50 MBytes  20000 Kbits/sec  2250
+[  5]   1.00-2.00   sec  2.50 MBytes  20000 Kbits/sec  2250
+[  5]   2.00-3.00   sec  2.50 MBytes  20000 Kbits/sec  2250
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-3.00   sec  7.50 MBytes  20000 Kbits/sec  0.000 ms  1000/8250 (12.1%)  sender
+[  5]   0.00-3.00   sec  7.50 MBytes  20000 Kbits/sec  0.008 ms  100/8250 (1.2%)  receiver
+
+iperf Done.
+END-TS-3 1779448724.896023236
+PROBE-DROP: [  5]   0.00-3.00   sec  7.50 MBytes  20000 Kbits/sec  0.008 ms  100/8250 (1.2%)  receiver
+BEGIN-TS-4 1779448724.914326300
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 55560 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  2.30 MBytes  18400 Kbits/sec  2070
+[  5]   1.00-2.00   sec  2.30 MBytes  18400 Kbits/sec  2070
+[  5]   2.00-3.00   sec  2.30 MBytes  18400 Kbits/sec  2070
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-3.00   sec  6.90 MBytes  18400 Kbits/sec  0.000 ms  0/6210 (0%)  sender
+[  5]   0.00-3.00   sec  6.90 MBytes  18400 Kbits/sec  0.007 ms  0/6210 (0%)  receiver
+
+iperf Done.
+END-TS-4 1779448727.924095742
+PROBE-OK: [  5]   0.00-3.00   sec  6.90 MBytes  18400 Kbits/sec  0.007 ms  0/6210 (0%)  receiver
+BEGIN-TS-5 1779448727.941561809
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 37959 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  2.34 MBytes  18700 Kbits/sec  2106
+[  5]   1.00-2.00   sec  2.34 MBytes  18700 Kbits/sec  2106
+[  5]   2.00-3.00   sec  2.34 MBytes  18700 Kbits/sec  2106
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-3.00   sec  7.02 MBytes  18700 Kbits/sec  0.000 ms  0/6318 (0%)  sender
+[  5]   0.00-3.00   sec  7.02 MBytes  18700 Kbits/sec  0.008 ms  0/6318 (0%)  receiver
+
+iperf Done.
+END-TS-5 1779448730.951773406
+PROBE-OK: [  5]   0.00-3.00   sec  7.02 MBytes  18700 Kbits/sec  0.008 ms  0/6318 (0%)  receiver
+BEGIN-TS-6 1779448730.969608226
+Connecting to host 172.30.219.132, port 30002
+[  5] local 10.131.0.42 port 51771 connected to 172.30.219.132 port 30002
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  24.2 MBytes  197978 Kbits/sec  20625
+[  5]   1.00-2.00   sec  24.2 MBytes  197978 Kbits/sec  20625
+[  5]   2.00-3.00   sec  24.2 MBytes  197978 Kbits/sec  20625
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-3.00   sec  72.5 MBytes  197978 Kbits/sec  0.000 ms  0/61875 (0%)  sender
+[  5]   0.00-3.00   sec  72.5 MBytes  197978 Kbits/sec  0.007 ms  0/61875 (0%)  receiver
+
+iperf Done.
+END-TS-6 1779448733.979608226
+PASS: [  5]   0.00-3.00   sec  72.5 MBytes  197978 Kbits/sec  0.007 ms  0/61875 (0%)  receiver

@@ -167,9 +167,15 @@ def pre_process_hunting_results(from_file, to_file, client_hunt_result=None, eng
     print(f"Highest run num = {highest_run_number}")
 
     if highest_run_number == 0:
-        print("WARNING: No PASS found in hunting results - using last run")
-        # Use the last run instead
-        highest_run_number = cur_run_number
+        # No confirm run stayed under the loss threshold. The old behavior fell
+        # back to "use the last run" - but with K=1 the last run is the single
+        # FAILED confirm, so that published an over-threshold rate as if it were a
+        # valid result. Fail the sample instead of fabricating a passing number.
+        print("ERROR: No PASS confirm found in hunting results - every confirm run")
+        print("       exceeded the loss threshold (--max-loss-pct). Failing this")
+        print("       sample rather than publishing an over-threshold (FAILED) rate.")
+        print("HUNT-STATUS: no-pass-confirm")
+        sys.exit(1)
 
     fh, _ = open_read_text_file(from_file)
     cur_run_number = 0
