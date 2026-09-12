@@ -2,14 +2,18 @@
 # vim: autoindent tabstop=4 shiftwidth=4 expandtab softtabstop=4 filetype=bash
 # -*- mode: sh; indent-tabs-mode: nil; sh-basic-offset: 4 -*-
 
+. /usr/bin/iperf-base || (echo "/usr/bin/iperf-base not found"; exit 1)
+
 #exec >iperf-runtime-stderrout.txt
 #exec 2>&1
 
 #iperf3 default time is 10sec
 time=10
+hunt_probe_time=8
+hunt_confirm_attempts=1
 bitrate_range=""
 pt_opts=""
-opts=$(getopt -q -o "" --longoptions "time:,bitrate-range:,passthru:" -n "getopt.sh" -- "$@");
+opts=$(getopt -q -o "" --longoptions "time:,bitrate-range:,passthru:,hunt-probe-time:,hunt-confirm-attempts:" -n "getopt.sh" -- "$@");
 eval set -- "$opts";
 #echo after: $opts
 while true; do
@@ -29,6 +33,16 @@ while true; do
             pt_opts=$1
             shift
             ;;
+        --hunt-probe-time)
+            shift
+            hunt_probe_time=$1
+            shift
+            ;;
+        --hunt-confirm-attempts)
+            shift
+            hunt_confirm_attempts=$1
+            shift
+            ;;
         --)
             shift
             break
@@ -40,20 +54,13 @@ while true; do
 done
 
 # If passthru, use passthu time. 
-if [ "$pt_opts" != "" ]; then
-    # If passthru has -t option, it overrides mv-param $time value
-    # strip ',' from the pt_opts string
-    passthru=$(echo "$pt_opts" | sed 's/,/ /g')
-    for p in ${passthru}; do
-        if echo "$p" | grep -Eq '\-t[0-9]'; then
-            time=$(echo $p | sed 's/-t//g')
-            break
-        fi
-    done
+if passthru_time=$(iperf_get_passthru_time "$pt_opts"); then
+    time="$passthru_time"
 fi
 
 if [ "$bitrate_range" != "" ]; then
-    # 0-drop hunting - time factor is O(log2N)
+    # 0-drop hunting - time factor is O(log2N)*probe_time + K*full_time
+    # where K = hunt_confirm_attempts (worst-case full-duration confirm runs)
     bstart=$(echo $bitrate_range | awk -F'-' '{print $1}')
     bend=$(echo $bitrate_range | awk -F'-' '{print $2}')
     # strip the unit letter i.e 10M-4000M
@@ -64,10 +71,9 @@ if [ "$bitrate_range" != "" ]; then
     log_value=$(echo $range | awk '{printf "%d\n", log($1)/log(2)}')
     # crude way for get its ceil value
     log_value=$(($log_value+1))
-    time=$(echo $log_value $time | awk '{printf "%d\n", $1*$2}')
+    time=$(echo $log_value $hunt_probe_time $hunt_confirm_attempts $time | awk '{printf "%d\n", $1*$2 + $3*$4}')
 fi
 
 # Set T/O time 2X the compute time.
 time=$(echo $time | awk '{printf "%d\n", $1*2}')
 echo $time
-

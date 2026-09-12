@@ -1,0 +1,5 @@
+{
+  "protocol": "udp",
+  "expected_metrics": ["tx-Gbps"],
+  "description": "UDP hunter client result with PROBE blocks plus two full-duration PASS confirm blocks (confirm then a higher reclaim). Verifies the post-processor parses multiple PASS/PROBE blocks without error and logs tx-Gbps on the client side"
+}

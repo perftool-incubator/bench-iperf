@@ -10,7 +10,7 @@ See the [crucible-examples iperf documentation](https://github.com/perftool-incu
 - **Bidirectional traffic** - Simultaneous TX/RX measurement with `--bidir` flag
 - **Multi-process per pod** - IRQ load sharing across multiple iperf engines (rickshaw creates engines, `num-peers` coordinates port allocation)
 - **IRQ/CPU pinning** - Pin iperf engine and NIC interrupts to specific CPUs for consistent performance
-- **Hunter mode** - Automatically find optimal bitrate with `--bitrate-range`
+- **Hunter mode** - Automatically find the max bitrate under a loss threshold with `--bitrate-range` (fast short-probe search + full-duration confirm)
 - **Protocol support** - TCP and UDP with automatic detection in post-processing
 - **Comprehensive metrics** - tx-Gbps, rx-Gbps, tx-retry/sec, rx-lost/sec, rx-pps
 
@@ -44,6 +44,148 @@ In bidirectional mode:
 - Post-processor aggregates TX and RX flows separately
 - Metrics generated: `tx-Gbps` and `rx-Gbps` from both endpoints
 - Role markers (`[TX-C]`, `[RX-C]`, `[TX-S]`, `[RX-S]`) identify each flow
+
+### Hunter Mode (automatic bitrate discovery)
+
+Hunter mode binary-searches for the **highest UDP bitrate that stays under a loss
+threshold**. Enable it by passing a range with `--bitrate-range` (instead of a
+fixed `--bitrate`) plus a `--max-loss-pct` limit:
+
+```json
+{
+  "benchmarks": [
+    {
+      "name": "iperf",
+      "ids": [1],
+      "mv-params": {
+        "common-params": [
+          { "arg": "protocol",        "vals": ["udp"] },
+          { "arg": "time",            "vals": ["30"] },
+          { "arg": "bitrate-range",   "vals": ["100M-2500M"] },
+          { "arg": "max-loss-pct",    "vals": ["0.1"], "role": "client" },
+          { "arg": "hunt-probe-time", "vals": ["8"],   "role": "client" },
+          { "arg": "hunt-confirm-attempts", "vals": ["1"], "role": "client" }
+        ]
+      }
+    }
+  ]
+}
+```
+
+> **These hunt knobs are client-side.** `max-loss-pct`, `hunt-probe-time`, and
+> `hunt-confirm-attempts` only affect the client's search/confirm loop; the server
+> never acts on them. mv-params default an unroled arg to the **client**, so they
+> already reach only the client — the explicit `"role": "client"` above just makes
+> that intent clear. Do **not** give them `"role": "all"`: the server's option
+> parser doesn't know them and would abort. (`bitrate-range` is `role: all`
+> because the server does read it.)
+
+#### How it works: two phases
+
+Hunter mode runs in two phases to be fast without sacrificing a valid
+full-duration result:
+
+1. **Probe (search) phase** — a binary search over `bitrate-range` runs each
+   trial at a **short** duration (`hunt-probe-time`, default 8s) instead of the
+   full `time`. This is where the ~2–3× speedup comes from: the search spends
+   `log2(range)` short probes narrowing the rate, rather than
+   `log2(range)` full-duration runs. The search step count is fixed by the
+   range alone (each step halves the interval regardless of pass/fail).
+
+2. **Confirm phase** — the found rate is re-run at the **full** `time` so the
+   post-processor has a genuine full-duration sample to publish. `hunt-confirm-attempts`
+   (K, default 1) controls how many full-duration confirm runs are allowed.
+
+Result lines are marked so the post-processor can tell the two phases apart:
+
+| Marker | Phase | Meaning |
+|--------|-------|---------|
+| `PROBE-OK:`   | probe   | short trial under the loss limit |
+| `PROBE-DROP:` | probe   | short trial over the loss limit |
+| `PASS:`       | confirm | full-duration run under the loss limit |
+| `FAIL:`       | confirm | full-duration run over the loss limit |
+
+The post-processor selects the **highest-bitrate `PASS`** as the winner. Probe
+lines deliberately avoid the substring `PASS`, so they are never selected — only
+full-duration confirm runs can win.
+
+If **no** confirm run passes (every full-duration confirm exceeds
+`--max-loss-pct`), the post-processor **fails the sample** rather than publishing
+a result. It does *not* fall back to the over-threshold confirm — doing so would
+report a FAILED (over-loss) rate as if it were a valid measured throughput, which
+is especially likely with `hunt-confirm-attempts=1` where the single confirm is
+the only full-duration run. A failed sample is dropped from the aggregate; if
+every sample fails, revisit the range/`--max-loss-pct` or the generator ceiling.
+
+#### Choosing `hunt-probe-time` (why 8s is a safe default)
+
+The probe duration is a **search-speed vs. probe-fidelity** tradeoff, and the
+design deliberately **decouples probe fidelity from result correctness**:
+
+- A probe's only job is to steer the binary search **direction** (does this rate
+  lose or not). The search bounds tolerate an occasional wrong probe — the next
+  step re-narrows around it.
+- The **confirm** re-runs the found rate at the **full** `time` and is the sole
+  authority for the published number. So a probe that is too optimistic (a short
+  run under-reporting sustained loss) does **not** publish a bad rate: the confirm
+  at that rate simply FAILs, and (see above) a failed confirm **fails the sample**
+  rather than publishing an over-threshold result.
+
+`8s` is chosen as a floor above UDP steady-state: single-stream UDP needs a few
+seconds to ramp and fill buffers, so probes shorter than ~5s read transients, not
+sustained loss. 8s (plus `omit`) clears that ramp while keeping the search fast.
+
+Raising `hunt-probe-time` helps **only when the sender produces a repeatable
+rate** and you are resolving a genuine, sharp loss cliff — a longer probe then
+averages over more of a *stable* signal. It does **not** cure a generator whose
+per-run output itself varies: multithreaded iperf3 (3.16+) single-stream UDP can
+swing run-to-run (different worker-thread/core placement) regardless of probe
+length, so a 30s probe is no more decisive than an 8s one. When the generator is
+that noisy, probe duration is the wrong lever — the search may land differently
+each run, but correctness is still protected: a bad rate FAILs its confirm and
+the sample fails rather than publishing. If you need repeatable hunt *values*,
+stabilize the generator itself; lengthening the probe will not do it. The cost of
+leaving `hunt-probe-time` low is at worst a wasted confirm / failed sample, never
+a wrong published rate.
+
+#### Confirm attempts (K) and the K=1 default
+
+- **`hunt-confirm-attempts=1` (default, recommended):** one full-duration
+  confirm at the found rate. Fast and deterministic.
+- **K>1 (bidirectional reclaim):** additional confirm runs bracket around the
+  found rate — climbing to reclaim headroom a noisy short-probe false-DROP may
+  have wrongly rejected, or stepping down from a false-PASS. This is only worth
+  its cost when hunting a **sharp, real loss cliff** where short probes are noisy
+  right at the edge.
+
+> **Important — K must be 1 for multi-pair / scale-out runs.** Each pod pair
+> hunts independently. With K>1 the number of confirm runs is variable and
+> per-pair jitter can make different pairs select **different** confirm runs at
+> **non-overlapping** wall-clock windows. The benchmark's shared measurement
+> period is the intersection of all pairs' winning windows, so misaligned
+> winners collapse it to zero and the aggregate throughput reports **0**. With
+> K=1 every pair runs the same fixed probe count plus exactly one confirm, so all
+> winning windows coincide and aggregation is correct.
+
+#### Caveat: generator-bound ceilings
+
+Hunter mode keys off **loss**, and it assumes iperf3 can actually generate the
+requested rate. If the sender is CPU/pps-bound below the range (e.g. small
+`--length` single-stream UDP tops out near ~1 Gbps per core), *achieved* never
+reaches *requested*, loss never crosses the threshold, and the search simply
+climbs to the top of the range. The published metric is the true **achieved**
+receiver rate (not the requested `-b`), so it remains correct — but it reflects
+the **generator** limit, not a network loss boundary. To hunt a real network
+ceiling, first lift the generator: larger `--length` (e.g. 1472, or jumbo), or
+scale out with multiple pod pairs.
+
+#### Caveat: single stream only (no `-P` / `nthreads`)
+
+Hunter mode does **not** support multiple parallel streams. With `nthreads > 1`
+(`-P`/`--parallel`), iperf3 emits a `[SUM]` receiver line that shifts the loss
+columns the drop analyzer parses, so the search misreads loss. Keep
+`nthreads=1` (the default) when hunting; to raise the generator ceiling, use a
+larger `--length` or scale out with multiple pod pairs instead.
 
 ### Multi-Process with IRQ Load Sharing (SR-IOV)
 
@@ -187,7 +329,9 @@ Each stream's throughput is logged as its own `stream` breakout series (tagged w
 | File | Purpose |
 |------|---------|
 | `rickshaw.json` | Rickshaw integration: defines client/server scripts and parameter transformations |
-| `iperf-client` | Client-side benchmark execution with multi-process and IRQ pinning support |
+| `iperf-client` | Client-side benchmark execution with multi-process and IRQ pinning support; drives hunter mode (probe search + confirm phase) |
+| `iperf-hunter` | Hunter-mode library: binary search, drop analyzer, and per-connection run bookkeeping |
+| `iperf-get-runtime` | Estimates benchmark runtime (accounts for `log2(range)` probes + K confirm runs in hunter mode) |
 | `iperf-server-start` / `iperf-server-stop` | Server lifecycle scripts with IRQ pinning |
 | `iperf-post-process` | Post-processing: parses iperf output into crucible metrics (supports bidirectional mode) |
 | `workshop.json` | Engine image build requirements |

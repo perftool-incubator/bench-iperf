@@ -13,6 +13,13 @@ ifname=""
 protocol=""
 length=""
 time=10
+hunt_probe_time=8
+# K=1 by default: a single full-duration confirm. K>1 (bidirectional reclaim)
+# is only useful when hunting a sharp, real loss cliff AND is unsafe for
+# multi-pair scale-out -- a variable confirm count and jitter-driven winner
+# selection desynchronize each pair's winning window, collapsing the benchmark's
+# shared measurement period to zero. Keep K=1 unless single-pair on a real cliff.
+hunt_confirm_attempts=1
 bit_rate=None
 remotehost=""
 control_port=""
@@ -29,7 +36,7 @@ num_peers=0
 nthreads=1
 
 echo "opts before: $@"
-longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:,num-peers:,nthreads:"
+longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:,num-peers:,nthreads:,hunt-probe-time:,hunt-confirm-attempts:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error "Unrecognized option specified"
@@ -124,6 +131,18 @@ while true; do
             shift;
             nthreads=$1
             echo "nthreads=$nthreads"
+            shift
+            ;;
+        --hunt-probe-time)
+            shift;
+            hunt_probe_time=$1
+            echo "hunt-probe-time=$hunt_probe_time"
+            shift
+            ;;
+        --hunt-confirm-attempts)
+            shift;
+            hunt_confirm_attempts=$1
+            echo "hunt-confirm-attempts=$hunt_confirm_attempts"
             shift
             ;;
         --)
@@ -321,13 +340,10 @@ options+=" $passthru_opts"
 
 time_opt="-t $time"
 # If passthru has --time or -t, let it override our $time value
-for p in ${passthru_opts}; do
-    if echo "$p" | grep -Eq '\-t[0-9]|\-\-time'; then
-        echo "passthru $p overrides time=$time"
-        time_opt=""
-        break
-    fi
-done
+if passthru_time=$(iperf_get_passthru_time "$pt_opts"); then
+    echo "passthru time=$passthru_time overrides time=$time"
+    time_opt=""
+fi
 
 options+=" $time_opt"
 
@@ -348,9 +364,81 @@ if [ "$bitrate_range" != "" ]; then
     unit=$(echo ${bstart: -1})
     bstart=${bstart::-1}
     bend=${bend::-1}
-    
+
+    probe_cmd=$(iperf_make_probe_command "$cmd" "$hunt_probe_time")
+    if [ "$probe_cmd" == "$cmd" ]; then
+        # Warn rather than silently running probes at full duration.
+        echo "WARNING: could not shorten probe duration (no recognized time option in cmd); probes will run at full --time"
+    fi
+    export cmd probe_cmd hunt_phase conn hunt_final hunt_pinfail
+
     echo "HUNTING begin:" > iperf-client-result.txt
     generic-hunter --begin $bstart --end $bend  --max-loss-pct $max_loss_pct iperf-drop-hunter $unit
+
+    cp iperf-client-result.txt iperf-hunt-probes.txt
+
+    #
+    # Confirm phase: bracketed bisection at FULL duration, bounded to
+    # $hunt_confirm_attempts runs. It moves toward whichever side it needs:
+    #   - on PASS: record as the pass floor (lo). If a fail ceiling (hi) is
+    #     known, bisect up toward it; otherwise (first attempt passed) reclaim
+    #     upward by re-testing hunt_pinfail at full duration -- the rate a noisy
+    #     short-probe false-DROP would have wrongly rejected.
+    #   - on FAIL: record as the fail ceiling (hi) and bisect down toward the
+    #     known pass floor (lo), or toward bstart if none yet.
+    # Every attempt emits a full-duration BEGIN-TS/PASS-or-FAIL block; the
+    # post-processor already selects the highest-bitrate PASS, so the best
+    # confirmed rate wins with no post-processor changes.
+    #
+    hunt_phase="confirm"
+    export hunt_phase
+    lo=""                       # highest full-duration PASS rate
+    hi=""                       # lowest full-duration FAIL rate
+    confirm_rate=$hunt_final
+    confirm_attempts=0
+
+    while [ $confirm_attempts -lt $hunt_confirm_attempts ]; do
+        confirm_attempts=$((confirm_attempts+1))
+        echo "Confirm attempt $confirm_attempts/$hunt_confirm_attempts at ${confirm_rate}${unit} (lo=${lo:-none} hi=${hi:-none})"
+        if iperf-drop-hunter $unit $confirm_rate; then
+            echo "Confirm PASSED at ${confirm_rate}${unit}"
+            lo=$confirm_rate
+            if [ -n "$hi" ]; then
+                # bracket known on both sides: bisect up toward the ceiling
+                next=$(( ($lo + $hi) / 2 ))
+            elif [ "$lo" -lt "$hunt_pinfail" ]; then
+                # reclaim: jump up to the rate that capped the probe search
+                next=$hunt_pinfail
+            else
+                # already at/above the search cap and still passing: keep
+                # climbing toward the range top to recover an earlier false-DROP
+                next=$(( ($lo + $bend) / 2 ))
+            fi
+        else
+            echo "Confirm FAILED at ${confirm_rate}${unit}"
+            hi=$confirm_rate
+            if [ -n "$lo" ]; then
+                next=$(( ($lo + $hi) / 2 ))
+            else
+                next=$(( ($bstart + $hi) / 2 ))
+            fi
+        fi
+
+        # stop when the bracket has converged or the next rate repeats
+        if [ -n "$lo" ] && [ "$next" -le "$lo" ]; then
+            break
+        fi
+        if [ "$next" -eq "$confirm_rate" ]; then
+            break
+        fi
+        confirm_rate=$next
+    done
+
+    if [ -n "$lo" ]; then
+        echo "Confirm phase done; highest full-duration PASS = ${lo}${unit}"
+    else
+        echo "WARNING: All confirm attempts failed, using last full-duration FAIL block"
+    fi
     exit
 fi
 

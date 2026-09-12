@@ -2,6 +2,57 @@
 
 if ! source ${TOOLBOX_HOME}/bash/library/bench-base; then echo "ERROR: Could not source bench-base from \$TOOLBOX_HOME [${TOOLBOX_HOME}]"; exit 1; fi
 
+function iperf_get_passthru_time {
+    local passthru
+    local value=""
+    local expect_value=0
+
+    passthru=$(echo "$1" | sed 's/,/ /g')
+    for p in ${passthru}; do
+        if [ "$expect_value" -eq 1 ]; then
+            if echo "$p" | grep -Eq '^[0-9]+$'; then
+                value="$p"
+            else
+                return 1
+            fi
+            expect_value=0
+            continue
+        fi
+
+        case "$p" in
+            -t|--time)
+                expect_value=1
+                ;;
+            -t[0-9]*)
+                value="${p#-t}"
+                if ! echo "$value" | grep -Eq '^[0-9]+$'; then
+                    return 1
+                fi
+                ;;
+            --time=*)
+                value="${p#--time=}"
+                if ! echo "$value" | grep -Eq '^[0-9]+$'; then
+                    return 1
+                fi
+                ;;
+        esac
+    done
+
+    if [ "$expect_value" -eq 1 ] || [ -z "$value" ]; then
+        return 1
+    fi
+    echo "$value"
+}
+
+function iperf_make_probe_command {
+    local command="$1"
+    local probe_time="$2"
+
+    echo "$command" | sed -E \
+        -e "s/(^|[[:space:]])-t[[:space:]]*[0-9]+/\\1-t $probe_time/g" \
+        -e "s/(^|[[:space:]])--time([=[:space:]])[0-9]+/\\1--time $probe_time/g"
+}
+
 #
 # Assign last CPU in list to client role, and next to last CPU to server role.
 # For PIN functionality, we want same NUMA and separate CPU for client and server.
@@ -41,4 +92,3 @@ if [ -f /usr/bin/iperf-pin ]; then
 elif [ -f ./iperf-pin ]; then
     source ./iperf-pin
 fi
-

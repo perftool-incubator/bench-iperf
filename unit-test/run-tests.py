@@ -79,6 +79,9 @@ def run_test_case(test_dir):
         env['PYTHONPATH'] = str(toolbox_home / "python")
 
         cmd = [venv_python, str(script_path), f"--protocol={protocol}", "--ipv=4", "--ifname=eth0"]
+        # Optional per-case extra args (e.g. --bitrate-range to exercise hunting-mode
+        # run selection, which is otherwise off by default).
+        cmd.extend(expected.get('extra_args', []))
 
         result = subprocess.run(
             cmd,
@@ -136,7 +139,7 @@ def run_test_case(test_dir):
             # Guard against timestamps stretching beyond the actual test
             # window (e.g. a per-row instead of per-interval ts increment
             # would multiply the series length by nthreads).
-            window = get_test_window_ms(test_dir)
+            window = get_test_window_ms(test_dir, cwd)
             if window is not None:
                 begin_ms, end_ms = window
                 max_sample_end = get_max_sample_end(cwd / "postprocess")
@@ -166,11 +169,21 @@ def read_metric_metadata(pp_dir):
     return types, streams
 
 
-def get_test_window_ms(test_dir):
-    """Return (begin_ms, end_ms) parsed from BEGIN-TS/END-TS in the client
-    result file - the same file iperf-post-process.py always reads
-    timestamps from, for both client and server mode."""
-    client_file = test_dir / "iperf-client-result.txt"
+def get_test_window_ms(test_dir, cwd=None):
+    """Return (begin_ms, end_ms) parsed from BEGIN-TS/END-TS.
+
+    In hunting mode the post-processor selects one run and writes its
+    BEGIN-TS/END-TS to hunt-temp-result.txt in the working dir; that (not the
+    first run in the raw result) is the window the published sample uses. Prefer
+    it when present, otherwise fall back to the client result file - the file
+    iperf-post-process.py reads timestamps from in non-hunting mode."""
+    client_file = None
+    if cwd is not None:
+        hunt_file = Path(cwd) / "hunt-temp-result.txt"
+        if hunt_file.exists():
+            client_file = hunt_file
+    if client_file is None:
+        client_file = test_dir / "iperf-client-result.txt"
     if not client_file.exists():
         return None
     begin_ts = end_ts = None

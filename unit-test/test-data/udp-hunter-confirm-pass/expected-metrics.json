@@ -1,0 +1,6 @@
+{
+  "protocol": "udp",
+  "extra_args": ["--bitrate-range=100M-2500M", "--max-loss-pct=0.1"],
+  "expected_metrics": ["tx-Gbps"],
+  "description": "UDP hunter client result with a PASS confirm, run WITH --bitrate-range so hunting-mode run selection actually executes. Verifies pre_process_hunting_results selects the PASS confirm and the sample succeeds - the positive counterpart to udp-hunter-all-fail, proving the failed-confirm fix does not reject valid PASS runs."
+}
