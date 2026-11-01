@@ -437,9 +437,10 @@ if [ "$bitrate_range" != "" ]; then
     if [ -n "$lo" ]; then
         echo "Confirm phase done; highest full-duration PASS = ${lo}${unit}"
     else
-        echo "WARNING: All confirm attempts failed, using last full-duration FAIL block"
+        echo "ERROR: All full-duration confirm attempts failed the loss threshold"
+        exit 1
     fi
-    exit
+    exit 0
 fi
 
 timeout_sec=10
