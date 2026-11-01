@@ -6,7 +6,6 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -66,190 +65,147 @@ def extract_stream_id(line):
     return None
 
 
-def dup_one_run(fh, first_line, outfile):
-    # Write to temp file first, then atomic rename to prevent race condition
-    # where server might read partially-written file
-    temp_file = outfile + ".tmp"
-    with open(temp_file, "w") as ofh:
-        ofh.write(first_line)
-        for line in fh:
-            ofh.write(line)
-            if "END-TS" in line:
-                break
-
-    # Atomic rename - file appears complete or not at all
-    os.rename(temp_file, outfile)
-
-
-def pre_process_hunting_results(from_file, to_file, client_hunt_result=None, engine_index="1"):
-    """Extract the best run from hunting results.
-
-    For client: finds highest bitrate PASS and extracts that run.
-    For server: reads which run the client selected, then extracts that test number.
-    """
-    debug_print("process_hunting_results: enter\n")
-
-    # Server mode: extract run number from client's hunt-temp-result.txt
-    if client_hunt_result is not None:
-        # Server mode - MUST have client hunt result file
-        # Wait up to 30 seconds for the file to appear (client might still be post-processing)
-        import time
-        max_wait = 30
-        wait_interval = 0.5
-        waited = 0
-        while not os.path.exists(client_hunt_result) and waited < max_wait:
-            if waited == 0:
-                print(f"Waiting for client hunt result file: {client_hunt_result}")
-            time.sleep(wait_interval)
-            waited += wait_interval
-
-        if not os.path.exists(client_hunt_result):
-            print(f"ERROR: Server hunting mode requires {client_hunt_result} to exist")
-            print(f"Waited {max_wait} seconds but file was not created")
-            print("Client post-processing must complete first to create this file")
-            sys.exit(1)
-        elif waited > 0:
-            print(f"Client hunt result file appeared after {waited:.1f} seconds")
-
-        print(f"Server hunting mode: reading client's selected run from {client_hunt_result}")
-        try:
-            with open(client_hunt_result, 'r') as fh:
-                first_line = fh.readline()
-                # Client hunt-temp has "BEGIN-TS-N" where N is the run number
-                match = re.search(r'BEGIN-TS-(\d+)', first_line)
-                if match:
-                    selected_run = int(match.group(1))
-                    print(f"Client selected run {selected_run}, extracting test #{selected_run} from server results")
-                    extract_server_test(from_file, to_file, selected_run, engine_index)
-                    return
-                else:
-                    print(f"ERROR: Could not find BEGIN-TS-N pattern in {client_hunt_result}")
-                    sys.exit(1)
-        except Exception as e:
-            print(f"ERROR: Failed to read client hunt result: {e}")
-            sys.exit(1)
-
-    # Client mode: find highest bitrate PASS
-    highest_bitrate = 0
-    highest_run_number = 0
-    cur_run_number = 0
-
+def is_hunting_result_file(path):
+    """Return True when a result file contains multiple timestamped trials."""
     try:
-        fh, _ = open_read_text_file(from_file)
+        fh, _ = open_read_text_file(path)
     except FileNotFoundError:
-        return
+        return False
+    with fh:
+        return sum(1 for line in fh if line.startswith("BEGIN-TS")) > 1
 
-    for line in fh:
-        if "BEGIN-TS" in line:
-            cur_run_number += 1
-        debug_print(f"Proc line: {line}")
-        if "PASS" in line:
-            columns = line.split()
-            # Find bitrate by searching for "bits/sec" pattern (same as interval parsing)
-            bitrate = None
-            for i in range(len(columns) - 1):
-                if 'bits/sec' in columns[i + 1]:
-                    try:
-                        bitrate = float(columns[i])
-                        break
-                    except (ValueError, IndexError):
-                        continue
 
-            if bitrate is None:
-                # Skip PASS lines where we couldn't find bitrate
-                debug_print(f"Could not extract bitrate from PASS line: {line}")
+def extract_pass_bitrate(line):
+    columns = line.split()
+    for index in range(len(columns) - 1):
+        if "bits/sec" in columns[index + 1]:
+            try:
+                return float(columns[index])
+            except ValueError:
+                return None
+    return None
+
+
+def parse_client_trials(path):
+    """Split client output into timestamped trials and capture pass/fail state."""
+    try:
+        fh, _ = open_read_text_file(path)
+    except FileNotFoundError:
+        print(f"ERROR: Could not open client result file {path}")
+        sys.exit(1)
+
+    trials = []
+    current = None
+    with fh:
+        for line in fh:
+            match = re.match(r"BEGIN-TS-(\d+)\s+(\d+(?:\.\d+)?)", line)
+            if match:
+                if current is not None:
+                    trials.append(current)
+                current = {
+                    "number": int(match.group(1)),
+                    "begin": float(match.group(2)),
+                    "end": None,
+                    "passed": False,
+                    "bitrate": None,
+                    "lines": [line],
+                }
                 continue
 
-            if bitrate > highest_bitrate:
-                highest_bitrate = bitrate
-                highest_run_number = cur_run_number
-    fh.close()
-    print(f"Highest run num = {highest_run_number}")
+            if current is None:
+                continue
 
-    if highest_run_number == 0:
-        # No confirm run stayed under the loss threshold. The old behavior fell
-        # back to "use the last run" - but with K=1 the last run is the single
-        # FAILED confirm, so that published an over-threshold rate as if it were a
-        # valid result. Fail the sample instead of fabricating a passing number.
+            current["lines"].append(line)
+            end_match = re.match(r"END-TS-(\d+)\s+(\d+(?:\.\d+)?)", line)
+            if end_match:
+                current["end"] = float(end_match.group(2))
+            elif line.startswith("PASS:"):
+                current["passed"] = True
+                current["bitrate"] = extract_pass_bitrate(line)
+            elif line.startswith("FAIL:"):
+                current["passed"] = False
+
+    if current is not None:
+        trials.append(current)
+
+    if not trials:
+        print(f"ERROR: No BEGIN-TS trial found in {path}")
+        sys.exit(1)
+    if any(trial["end"] is None for trial in trials):
+        print(f"ERROR: At least one trial in {path} has no END-TS marker")
+        sys.exit(1)
+    return trials
+
+
+def select_primary_trial(trials):
+    passing = [
+        trial for trial in trials if trial["passed"] and trial["bitrate"] is not None
+    ]
+    if not passing:
         print("ERROR: No PASS confirm found in hunting results - every confirm run")
         print("       exceeded the loss threshold (--max-loss-pct). Failing this")
         print("       sample rather than publishing an over-threshold (FAILED) rate.")
         print("HUNT-STATUS: no-pass-confirm")
         sys.exit(1)
 
-    fh, _ = open_read_text_file(from_file)
-    cur_run_number = 0
-    for line in fh:
-        if "BEGIN-TS" in line:
-            cur_run_number += 1
-            if highest_run_number == cur_run_number:
-                dup_one_run(fh, line, to_file)
-                break
-    fh.close()
+    selected = max(passing, key=lambda trial: (trial["bitrate"], trial["number"]))
+    print(
+        f"Selected highest passing trial {selected['number']} "
+        f"({selected['bitrate']} bits/sec)"
+    )
+    return selected
 
 
-def extract_server_test(from_file, to_file, test_number, engine_index="1"):
-    """Extract a specific test number from server result file.
+def write_client_trial_files(trials):
+    os.makedirs("postprocess", exist_ok=True)
+    paths = {}
+    for trial in trials:
+        path = f"postprocess/client-trial-{trial['number']}.txt"
+        temporary_path = path + ".tmp"
+        with open(temporary_path, "w") as output:
+            output.writelines(trial["lines"])
+        os.replace(temporary_path, path)
+        paths[trial["number"]] = path
+    return paths
 
-    Server output has markers like 'Server listening on 30002 (test #N)'
-    We also need to read the timestamps from the client's hunt-temp-result.txt
-    """
+
+def split_server_tests(path):
+    """Split iperf server output into files keyed by its test number."""
     try:
-        fh, _ = open_read_text_file(from_file)
+        fh, _ = open_read_text_file(path)
     except FileNotFoundError:
-        print(f"ERROR: Could not open {from_file}")
-        return
+        print(f"ERROR: Could not open server result file {path}")
+        sys.exit(1)
 
-    # Read timestamps from client hunt-temp-result.txt
-    client_hunt = f"../../client/{engine_index}/hunt-temp-result.txt"
-    begin_ts = None
-    end_ts = None
-    if os.path.exists(client_hunt):
-        with open(client_hunt, 'r') as cfh:
-            for line in cfh:
-                if f"BEGIN-TS-{test_number}" in line:
-                    begin_ts = line.strip()
-                elif f"END-TS-{test_number}" in line:
-                    end_ts = line.strip()
-                    break
-
-    # Find the test marker
-    target_marker = f"(test #{test_number})"
-    next_test_marker = f"(test #{test_number + 1})"
-    in_target_test = False
-
-    # Write to temp file first, then atomic rename to prevent race condition
-    temp_file = to_file + ".tmp"
-    with open(temp_file, "w") as ofh:
-        # Write BEGIN timestamp if found
-        if begin_ts:
-            ofh.write(begin_ts + "\n")
-
+    os.makedirs("postprocess", exist_ok=True)
+    tests = {}
+    current_number = None
+    current_lines = []
+    with fh:
         for line in fh:
-            if target_marker in line:
-                in_target_test = True
-                debug_print(f"Found start of {target_marker}\n")
-                continue  # Skip the "Server listening" line
+            match = re.search(r"Server listening on \d+ \(test #(\d+)\)", line)
+            if match:
+                if current_number is not None:
+                    tests[current_number] = current_lines
+                current_number = int(match.group(1))
+                current_lines = []
+            elif current_number is not None:
+                current_lines.append(line)
+    if current_number is not None:
+        tests[current_number] = current_lines
 
-            if in_target_test:
-                if next_test_marker in line or "END-TS" in line:
-                    # Reached next test or end marker
-                    debug_print(f"Reached end of test {test_number}\n")
-                    break
-                ofh.write(line)
-
-        # Write END timestamp if found
-        if end_ts:
-            ofh.write(end_ts + "\n")
-
-    fh.close()
-
-    # Atomic rename - file appears complete or not at all
-    os.rename(temp_file, to_file)
-    print(f"Extracted test #{test_number} from server results")
+    paths = {}
+    for number, lines in tests.items():
+        path = f"postprocess/server-test-{number}.txt"
+        temporary_path = path + ".tmp"
+        with open(temporary_path, "w") as output:
+            output.writelines(lines)
+        os.replace(temporary_path, path)
+        paths[number] = path
+    return paths
 
 
-def process_proto(data_file, times, names, omit, metrics):
+def process_proto(data_file, times, names, omit, metrics, period_name):
     print("process_proto: enter")
     rateunit = "none"
     bitrate_div = 1
@@ -398,11 +354,11 @@ def process_proto(data_file, times, names, omit, metrics):
 
                         desc = {"source": "iperf", "class": "throughput", "type": "rx-lost/sec"}
                         s = {"begin": int(ts), "end": int(ts_end), "value": lost}
-                        metrics.log_sample("0", desc, sample_names, s)
+                        metrics.log_sample(period_name, desc, sample_names, s)
 
                         desc = {"source": "iperf", "class": "throughput", "type": "rx-pps"}
                         s = {"begin": int(ts), "end": int(ts_end), "value": total}
-                        metrics.log_sample("0", desc, sample_names, s)
+                        metrics.log_sample(period_name, desc, sample_names, s)
 
                         if primary_metric is None:
                             primary_metric = "rx-Gbps"
@@ -423,7 +379,7 @@ def process_proto(data_file, times, names, omit, metrics):
 
             s = {"begin": int(ts), "end": int(ts_end), "value": bitrate / bitrate_div}
             debug_print(f"begin: int {ts}, end: int {ts_end}\n")
-            metrics.log_sample("0", desc, sample_names, s)
+            metrics.log_sample(period_name, desc, sample_names, s)
             sample_count += 1
 
         elif not is_udp_line and re.search(r'sec\s', line):
@@ -513,7 +469,7 @@ def process_proto(data_file, times, names, omit, metrics):
 
                         desc = {"source": "iperf", "class": "count", "type": "tx-retry/sec"}
                         s = {"begin": int(ts), "end": int(ts_end), "value": retry}
-                        metrics.log_sample("0", desc, sample_names, s)
+                        metrics.log_sample(period_name, desc, sample_names, s)
                         break  # Found retry, stop searching
                     except (ValueError, IndexError):
                         # Not an integer, keep looking
@@ -553,7 +509,7 @@ def process_proto(data_file, times, names, omit, metrics):
                 # Log immediately in unidirectional mode
                 desc = {"source": "iperf", "class": "throughput", "type": metric_type}
                 s = {"begin": int(ts), "end": int(ts_end), "value": throughput_value}
-                metrics.log_sample("0", desc, sample_names, s)
+                metrics.log_sample(period_name, desc, sample_names, s)
 
             sample_count += 1
 
@@ -561,7 +517,7 @@ def process_proto(data_file, times, names, omit, metrics):
         primary_metric = "rx-Gbps"
         desc = {"source": "iperf", "class": "throughput", "type": primary_metric}
         s = {"begin": int(times["begin"]), "end": int(times["end"]), "value": 0}
-        metrics.log_sample("0", desc, names, s)
+        metrics.log_sample(period_name, desc, names, s)
 
     fh.close()
 
@@ -575,7 +531,7 @@ def process_proto(data_file, times, names, omit, metrics):
             for metric_type, value in metrics_dict.items():
                 desc = {"source": "iperf", "class": "throughput", "type": metric_type}
                 s = {"begin": begin_ts, "end": end_ts, "value": value}
-                metrics.log_sample("0", desc, sample_names, s)
+                metrics.log_sample(period_name, desc, sample_names, s)
                 debug_print(f"Logged {metric_type}: {value} Gbps for period {begin_ts}-{end_ts}\n")
 
     metric_data_name = metrics.finish_samples(dont_delete=True)
@@ -584,23 +540,7 @@ def process_proto(data_file, times, names, omit, metrics):
     if primary_metric is None:
         primary_metric = "rx-Gbps"
 
-    sample_data = {
-        "rickshaw-bench-metric": {"schema": {"version": "2021.04.12"}},
-        "benchmark": "iperf",
-        "primary-period": "measurement",
-        "primary-metric": primary_metric,
-        "periods": [
-            {
-                "name": "measurement",
-                "metric-files": [metric_data_name],
-            }
-        ],
-    }
-
-    with open("postprocess/post-process-data.json", "w") as f:
-        json.dump(sample_data, f)
-
-    return primary_metric
+    return primary_metric, metric_data_name
 
 
 def main():
@@ -624,9 +564,6 @@ def main():
     print(f"Arguments: {' '.join(sys.argv)}")
     print("=" * 60)
     print()
-
-    hunting_mode = args.bitrate_range != "0"
-    omit_val = args.omit
 
     # Detect if running on server vs client
     is_server = False
@@ -679,55 +616,65 @@ def main():
         print("Is the current directory for an iperf run?")
         sys.exit(1)
 
-    final_hunt_result = "hunt-temp-result.txt"
     names = {"cmd": "write"}
 
     if os.path.exists("./begin.txt"):
         print("Cannot process old results with this version. Please use an older bench-iperf version.")
         sys.exit(1)
 
-    metrics = CDMMetrics()
+    hunting_mode = args.bitrate_range != "0" or is_hunting_result_file(timestamp_file)
+    omit_val = args.omit
+    trials = parse_client_trials(timestamp_file)
+    selected_trial = select_primary_trial(trials) if hunting_mode else trials[0]
+    primary_trial_number = selected_trial["number"]
 
-    if not hunting_mode:
-        # Extract timestamps from timestamp_file (client file for both client and server)
-        begin_out = subprocess.run(
-            f"grep 'BEGIN-TS' {timestamp_file} | head -1 | awk '{{print $2}}'",
-            shell=True, capture_output=True, text=True
-        ).stdout.strip()
-        end_out = subprocess.run(
-            f"grep 'END-TS' {timestamp_file} | head -1 | awk '{{print $2}}'",
-            shell=True, capture_output=True, text=True
-        ).stdout.strip()
-        times = {
-            "begin": float(begin_out) * SEC_TO_MSEC,
-            "end": float(end_out) * SEC_TO_MSEC,
-        }
-        process_proto(result_file, times, names, omit_val, metrics)
+    if is_server:
+        trial_files = (
+            split_server_tests(result_file)
+            if hunting_mode
+            else {primary_trial_number: result_file}
+        )
     else:
-        # Hunting mode: process selected run from result_file
-        # For server, pass client hunt result so it can extract the same run number
-        if is_server:
-            client_hunt_result = f"../../client/{engine_index}/hunt-temp-result.txt"
-            pre_process_hunting_results(result_file, final_hunt_result, client_hunt_result, engine_index)
-            timestamp_source = client_hunt_result if os.path.exists(client_hunt_result) else timestamp_file
-        else:
-            # Client mode - find best run from its own results
-            pre_process_hunting_results(result_file, final_hunt_result)
-            timestamp_source = final_hunt_result
+        trial_files = (
+            write_client_trial_files(trials)
+            if hunting_mode
+            else {primary_trial_number: result_file}
+        )
 
-        begin_out = subprocess.run(
-            f"grep BEGIN-TS {timestamp_source} | awk '{{print $2}}'",
-            shell=True, capture_output=True, text=True
-        ).stdout.strip()
-        end_out = subprocess.run(
-            f"grep END-TS {timestamp_source} | awk '{{print $2}}'",
-            shell=True, capture_output=True, text=True
-        ).stdout.strip()
+    periods = []
+    primary_metric = None
+    for trial in trials:
+        number = trial["number"]
+        if number not in trial_files:
+            print(f"ERROR: No server test #{number} for client trial #{number}")
+            sys.exit(1)
+
+        period_name = (
+            "measurement" if trial is selected_trial else f"hunt-trial-{number}"
+        )
+        file_id = "0" if period_name == "measurement" else period_name
+        metrics = CDMMetrics()
         times = {
-            "begin": float(begin_out) * SEC_TO_MSEC,
-            "end": float(end_out) * SEC_TO_MSEC,
+            "begin": trial["begin"] * SEC_TO_MSEC,
+            "end": trial["end"] * SEC_TO_MSEC,
         }
-        process_proto(final_hunt_result, times, names, omit_val, metrics)
+        trial_primary_metric, metric_data_name = process_proto(
+            trial_files[number], times, names, omit_val, metrics, file_id
+        )
+        if trial is selected_trial:
+            primary_metric = trial_primary_metric
+        periods.append({"name": period_name, "metric-files": [metric_data_name]})
+
+    sample_data = {
+        "rickshaw-bench-metric": {"schema": {"version": "2021.04.12"}},
+        "benchmark": "iperf",
+        "primary-period": "measurement",
+        "primary-metric": primary_metric,
+        "periods": periods,
+    }
+    with open("postprocess/post-process-data.json", "w") as output:
+        json.dump(sample_data, output, indent=2)
+        output.write("\n")
 
     # Print status to stdout for test infrastructure (on separate line)
     print("POST-PROCESS-STATUS: success")
