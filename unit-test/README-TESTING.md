@@ -29,7 +29,7 @@ cd /opt/crucible/subprojects/benchmarks/iperf/unit-test
 
 ## Test Cases
 
-The test suite includes 14 test cases with real production data:
+The test suite includes 15 test cases with real and synthetic production-shaped data:
 
 1. **missing-timestamps** - Validates failure detection (missing BEGIN-TS/END-TS)
 2. **tcp-unidirectional-client** - TCP sender with tx-Gbps and tx-retry/sec
@@ -55,13 +55,14 @@ The test suite includes 14 test cases with real production data:
     loss threshold (no PASS); `should_fail: true` verifies the post-processor
     fails the sample instead of publishing the over-threshold FAILED confirm as a
     valid rate (regression guard for the K=1 failed-confirm-published bug)
+15. **udp-hunter-server** - Hunter server result processed without
+    `--bitrate-range`; verifies hunt detection from multiple client trials,
+    server-test alignment, and preservation of every hunt period
 
-> The older hunter cases (8, 11, 12) run *without* `--bitrate-range`, so they
-> only exercise that the PASS/FAIL/PROBE marker lines **parse**; the
-> run-**selection** logic (`pre_process_hunting_results`) is off unless a case
-> sets `"extra_args": ["--bitrate-range=...", "--max-loss-pct=..."]`. Cases 13–14
-> set it to exercise selection itself (the winning-PASS path and the all-FAIL
-> path).
+> Hunter cases that run without `--bitrate-range` verify detection from multiple
+> sequential client trial markers, including server-side processing. Cases that
+> set `"extra_args": ["--bitrate-range=...", "--max-loss-pct=..."]` additionally
+> exercise explicit hunting arguments (the winning-PASS and all-FAIL paths).
 
 Each case runs in a `sample-1/<role>/1/` directory (matching how rickshaw
 actually lays out engine working directories) so client-mode and
@@ -78,6 +79,7 @@ it defaults to `"client"`.
 - ✅ All protocol/direction/mode combinations covered
 - ✅ The exact set of metric types logged matches `expected_metrics` (not just that *something* was logged)
 - ✅ Optional `expected_stream_count` asserts how many distinct `stream` breakout values were logged (guards the per-thread/`nthreads` breakout against silently collapsing back into one series)
+- ✅ Optional `expected_periods` asserts the exact hunt-period names and order
 - ✅ Sample timestamps never extend past the actual test window (guards against timestamps advancing per output row instead of per real interval, which would stretch the series out by a factor of `nthreads`)
 
 ## Debugging Post-Processor Changes
