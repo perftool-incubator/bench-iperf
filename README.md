@@ -14,6 +14,41 @@ See the [crucible-examples iperf documentation](https://github.com/perftool-incu
 - **Protocol support** - TCP and UDP with automatic detection in post-processing
 - **Comprehensive metrics** - tx-Gbps, rx-Gbps, tx-retry/sec, rx-lost/sec, rx-pps
 
+## Crucible run-file networking
+
+For a Crucible `remotehosts` run, use the server's `ifname` parameter when the
+benchmark should use a particular server network interface. Do not also set the
+client's `remotehost` parameter in that case.
+
+`iperf-server-start` resolves the IPv4 or IPv6 address assigned to `ifname` and
+publishes that address and the iperf ports through the Crucible service/roadblock
+message. `iperf-client` reads that service information automatically when
+`remotehost` is omitted, allowing the client to connect to the selected server
+data-plane interface rather than an SSH, management, or otherwise unintended
+interface.
+
+The client's `remotehost` parameter remains available for explicit-address use
+cases. If it is used, do not also set server `ifname`; `remotehost` bypasses the
+service-message address exchange.
+
+For a `remotehosts` run, supply either server `ifname` or client `remotehost`.
+If both are omitted, the server publishes an empty service IP and the client
+exits with `remotehost is not set` before starting iperf. The endpoint `host`
+field selects the remote host for SSH/engine deployment; it is not a benchmark
+data-plane target and does not substitute for either parameter.
+
+Minimal parameter example:
+
+```json
+{
+  "params": [
+    { "arg": "protocol", "vals": ["tcp"], "role": "client" },
+    { "arg": "time", "vals": ["30"], "role": "client" },
+    { "arg": "ifname", "vals": ["eno16595np0"], "role": "server" }
+  ]
+}
+```
+
 ## Configuration
 
 ### Bidirectional Mode
