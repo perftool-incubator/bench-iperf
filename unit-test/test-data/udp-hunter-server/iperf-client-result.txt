@@ -1,0 +1,21 @@
+HUNTING begin:
+BEGIN-TS-1 1000.0
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  1 MBytes  100 Kbits/sec  10
+END-TS-1 1001.0
+PASS: [  5]   0.00-1.00  sec  1 MBytes  100 Kbits/sec  0.001 ms  0/10 (0%)  receiver
+BEGIN-TS-2 1001.1
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  1 MBytes  120 Kbits/sec  12
+END-TS-2 1002.1
+FAIL: [  5]   0.00-1.00  sec  1 MBytes  120 Kbits/sec  0.001 ms  1/12 (8.3%)  receiver
+BEGIN-TS-3 1002.2
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  1 MBytes  150 Kbits/sec  15
+END-TS-3 1003.2
+PASS: [  5]   0.00-1.00  sec  1 MBytes  150 Kbits/sec  0.001 ms  0/15 (0%)  receiver
+BEGIN-TS-4 1003.3
+[ ID] Interval           Transfer     Bitrate         Total Datagrams
+[  5]   0.00-1.00   sec  1 MBytes  200 Kbits/sec  20
+END-TS-4 1004.3
+FAIL: [  5]   0.00-1.00  sec  1 MBytes  200 Kbits/sec  0.001 ms  2/20 (10%)  receiver

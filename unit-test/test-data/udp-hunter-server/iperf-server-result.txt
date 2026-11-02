@@ -1,0 +1,24 @@
+Server listening on 30001 (test #1)
+-----------------------------------------------------------
+Accepted connection from 127.0.0.1, port 40000
+[  5] local 127.0.0.1 port 30001 connected to 127.0.0.1 port 40000
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-1.00   sec  1 MBytes  100 Kbits/sec  0.001 ms  0/10 (0%)
+Server listening on 30001 (test #2)
+-----------------------------------------------------------
+Accepted connection from 127.0.0.1, port 40000
+[  5] local 127.0.0.1 port 30001 connected to 127.0.0.1 port 40000
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-1.00   sec  1 MBytes  120 Kbits/sec  0.001 ms  1/12 (8.3%)
+Server listening on 30001 (test #3)
+-----------------------------------------------------------
+Accepted connection from 127.0.0.1, port 40000
+[  5] local 127.0.0.1 port 30001 connected to 127.0.0.1 port 40000
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-1.00   sec  1 MBytes  150 Kbits/sec  0.001 ms  0/15 (0%)
+Server listening on 30001 (test #4)
+-----------------------------------------------------------
+Accepted connection from 127.0.0.1, port 40000
+[  5] local 127.0.0.1 port 30001 connected to 127.0.0.1 port 40000
+[ ID] Interval           Transfer     Bitrate         Jitter    Lost/Total Datagrams
+[  5]   0.00-1.00   sec  1 MBytes  200 Kbits/sec  0.001 ms  2/20 (10%)

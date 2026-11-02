@@ -242,151 +242,54 @@ END-TS-0 1779563542.253489588
 
 ## Hunter Mode Processing
 
-### Overview
-Hunter mode runs multiple iperf tests with different bitrates to find the highest throughput that stays under a loss threshold (`--max-loss-pct`).
+### Trial detection and selection
 
-### Two-Phase Hunting (probe + confirm)
+The client result contains one `BEGIN-TS-N`/`END-TS-N` block per sequential hunt
+trial. The post-processor splits those blocks, records their timestamps, and
+captures the `PASS:`/`FAIL:` result line. Hunting is detected from multiple trial
+markers even when the server post-processor is invoked without
+`--bitrate-range`.
 
-`iperf-client` runs the hunt in two phases (see the Hunter Mode section in the
-top-level `README.md` for the user-facing description):
+The primary trial is the highest-bitrate `PASS`; a bitrate tie selects the later
+trial. If no confirm trial passes, the sample fails rather than publishing an
+over-threshold result.
 
-1. **Probe (search) phase** — the binary search runs each trial at a short
-   duration (`--hunt-probe-time`, default 8s). Its result lines are marked
-   `PROBE-OK:` / `PROBE-DROP:`.
-2. **Confirm phase** — the found rate is re-run at the full `--time`, bounded to
-   `--hunt-confirm-attempts` (K, default 1) runs. Its result lines are marked
-   `PASS:` / `FAIL:`.
+### Client/server alignment
 
-**Why this matters to the post-processor:** the selection algorithm below keys
-off the substring `"PASS"`. The probe markers `PROBE-OK` / `PROBE-DROP` are
-chosen specifically so they do **not** contain `"PASS"`, so short probes are
-never selected as winners — only full-duration confirm `PASS` runs can win. The
-`BEGIN-TS`/`END-TS` run counter still increments for every run (probes and
-confirm alike), so a selected run number correctly maps to its `BEGIN-TS-N`
-block. No post-processor change was needed to support the two-phase design.
+Server output contains `Server listening on <port> (test #N)` markers. The
+post-processor splits each numbered server test and pairs it with client trial
+`N`. Both sides derive their period timestamps from that client trial's
+`BEGIN-TS-N` and `END-TS-N`, eliminating client/server timestamp drift.
 
-### Client-Side Hunter Logic
+### Periods and metric files
 
-**Input**: `iperf-client-result.txt` with multiple test runs
-```
-BEGIN-TS-1 1779449520.123456789
-[iperf output for run 1]
-END-TS-1 1779449530.234567890
+Every trial is emitted as a CDM period:
 
-BEGIN-TS-2 1779449540.345678901
-[iperf output for run 2]
-END-TS-2 1779449550.456789012
-...
-```
-
-**Selection Algorithm** (lines 89-129):
-```python
-highest_bitrate = 0
-highest_run_number = 0
-cur_run_number = 0
-
-for line in fh:
-    if "BEGIN-TS" in line:
-        cur_run_number += 1
-    if "PASS" in line:
-        columns = line.split()
-        bitrate = float(columns[8])  # e.g., "149987" from "149987 Kbits/sec"
-        if bitrate > highest_bitrate:
-            highest_bitrate = bitrate
-            highest_run_number = cur_run_number
-```
-
-**PASS Line Format**:
-```
-PASS: [  5]   0.00-10.00  sec   179 MBytes  149987 Kbits/sec  0.007 ms  0/207293 (0%)  receiver
-```
-- Column 8 contains the bitrate value
-- PASS indicates zero packet loss
-- Selects run with highest bitrate among all PASS runs
-
-**Output**: `hunt-temp-result.txt` containing only the selected run
-```
-BEGIN-TS-7 1779449620.867662429
-[iperf output for run 7 only]
-END-TS-7 1779449633.875724949
-```
-
-### Server-Side Hunter Logic
-
-**Challenge**: Server result file contains continuous output from all tests:
-```
-Server listening on 30001 (test #1)
-[run 1 output]
-Server listening on 30002 (test #2)
-[run 2 output]
-...
-Server listening on 30007 (test #7)
-[run 7 output]
-...
-```
-
-**Solution** (lines 64-87, 132-185):
-
-1. **Read client's selection**:
-```python
-client_hunt_result = "../../client/1/hunt-temp-result.txt"
-with open(client_hunt_result, 'r') as fh:
-    first_line = fh.readline()
-    # Extract: "BEGIN-TS-7" → run number = 7
-    match = re.search(r'BEGIN-TS-(\d+)', first_line)
-    selected_run = int(match.group(1))
-```
-
-2. **Extract matching test from server results**:
-```python
-target_marker = f"(test #{test_number})"
-next_test_marker = f"(test #{test_number + 1})"
-in_target_test = False
-
-for line in fh:
-    if target_marker in line:
-        in_target_test = True
-        continue  # Skip "Server listening" line
-
-    if in_target_test:
-        if next_test_marker in line or "END-TS" in line:
-            break
-        ofh.write(line)
-```
-
-3. **Add timestamps from client**:
-```python
-# Read BEGIN-TS-N and END-TS-N from client hunt-temp-result.txt
-client_hunt = "../../client/1/hunt-temp-result.txt"
-with open(client_hunt, 'r') as cfh:
-    for line in cfh:
-        if f"BEGIN-TS-{test_number}" in line:
-            begin_ts = line.strip()
-        elif f"END-TS-{test_number}" in line:
-            end_ts = line.strip()
-
-# Prepend/append to extracted server output
-ofh.write(begin_ts + "\n")
-[server output for test N]
-ofh.write(end_ts + "\n")
-```
-
-**Critical**: Server must extract the SAME run number that client selected, ensuring metric alignment.
+- The selected primary trial is named `measurement` and uses metric file prefix
+  `metric-data-0`.
+- Every other trial is named `hunt-trial-N` and uses a matching metric file
+  prefix.
+- `post-process-data.json` lists the periods in trial order.
+- System metrics collected during the run can be queried against any hunt
+  period.
 
 ### Hunter Mode Directory Structure
 
-```
+```text
 <run-dir>/
 ├── client/1/
-│   ├── iperf-client-result.txt       # All runs with BEGIN-TS-N/END-TS-N markers
-│   ├── hunt-temp-result.txt          # Selected run only (created by pre_process_hunting_results)
-│   └── metric-data-0.{json,csv}.xz   # Metrics from selected run
+│   ├── iperf-client-result.txt
+│   └── postprocess/
+│       ├── client-trial-N.txt
+│       ├── metric-data-0.{json,csv}.xz
+│       └── metric-data-hunt-trial-N.{json,csv}.xz
 └── server/1/
-    ├── iperf-server-result.txt       # All tests concatenated
-    ├── hunt-temp-result.txt          # Extracted test matching client selection
-    └── metric-data-0.{json,csv}.xz   # Metrics from matching test
+    ├── iperf-server-result.txt
+    └── postprocess/
+        ├── server-test-N.txt
+        ├── metric-data-0.{json,csv}.xz
+        └── metric-data-hunt-trial-N.{json,csv}.xz
 ```
-
 ## Metric Types Collected
 
 ### UDP Metrics
@@ -680,66 +583,19 @@ crucible index <run-dir>
 
 **Prevention**: This is a known rickshaw issue being tracked upstream.
 
-### Issue 2: Race Conditions in Hunter Mode Post-Processing
+### Issue 2: Hunter Client/Server Timestamp Drift
 
-There are TWO race conditions when client and server post-processing run in parallel:
+**Symptom**: A result summary reports a negative primary-period duration or a
+zero primary metric even though iperf produced data.
 
-#### Race Condition 2a: File Not Created Yet
+**Root cause**: The server post-processor previously relied on
+`--bitrate-range` to detect hunting, but Rickshaw commonly invokes it with only
+`--ifname`. It then based all server intervals on the first client trial while
+the client selected a later trial.
 
-**Symptom**: Server post-processing fails with "No PASS found", server hunt-temp-result.txt contains all tests instead of selected test
-
-**Root Cause**: Server post-processing started before client created hunt-temp-result.txt
-
-**What happens**:
-1. Rickshaw may run client and server post-processing in parallel
-2. Server checks for `../../client/1/hunt-temp-result.txt` (line 80-91)
-3. File doesn't exist yet, so check fails
-4. Falls through to client-side hunting logic (lines 109-149)
-5. Client logic looks for PASS lines - but server output has no PASS lines
-6. Defaults to "last run" which is actually run 0 (the entire server result file)
-7. Calls `dup_one_run()` which copies from BEGIN-TS-0 to END-TS-0 (all tests)
-
-**Solution**: Server waits up to 30 seconds for client hunt-temp-result.txt to appear (implemented in lines 80-91). If file doesn't appear, post-processing exits with error instead of producing incorrect output.
-
-**Error message if timeout**:
-```
-ERROR: Server hunting mode requires ../../client/1/hunt-temp-result.txt to exist
-Waited 30 seconds but file was not created
-Client post-processing must complete first to create this file
-```
-
-#### Race Condition 2b: Partial File Read
-
-**Symptom**: Server reads incomplete hunt-temp-result.txt, may fail to extract run number or get truncated test data
-
-**Root Cause**: Server passes `os.path.exists()` check while client is still writing the file
-
-**What happens**:
-1. Client opens hunt-temp-result.txt for writing
-2. Client writes first few lines
-3. File exists on disk but isn't fully written yet
-4. Server's `os.path.exists()` check returns True
-5. Server opens and reads the incomplete file
-6. Regex might not find `BEGIN-TS-(\d+)` pattern
-7. Or server gets partial test data missing END-TS marker
-
-**Solution**: Client uses atomic write-then-rename pattern (implemented in `dup_one_run()` at lines 55-67 and `extract_server_test()` at lines 191-219):
-```python
-# Write to temp file first
-temp_file = outfile + ".tmp"
-with open(temp_file, "w") as ofh:
-    # ... write all data ...
-
-# Atomic rename - file appears complete or not at all
-os.rename(temp_file, outfile)
-```
-
-**How this prevents the race**:
-- Client writes to `hunt-temp-result.txt.tmp`
-- Server's `os.path.exists("hunt-temp-result.txt")` returns False during writing
-- Client finishes writing, calls atomic `os.rename()`
-- File instantly appears complete (filesystems guarantee rename atomicity)
-- Server sees file only after it's fully written
+**Solution**: Detect hunting from multiple client trial markers, split all server
+tests, and pair server test `N` with client trial `N`. Both roles then use that
+client trial's timestamps and emit the same period names.
 
 ### Issue 3: Header Column Indices Don't Match Data
 

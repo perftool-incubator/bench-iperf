@@ -131,6 +131,13 @@ def run_test_case(test_dir):
                 print(f"  FAIL ✗ Metric types {sorted(metric_types)} != expected {sorted(expected_types)}")
                 return False
 
+            expected_periods = expected.get('expected_periods')
+            if expected_periods is not None:
+                periods = read_postprocess_periods(cwd / "postprocess")
+                if periods != expected_periods:
+                    print(f"  FAIL ✗ Periods {periods} != expected {expected_periods}")
+                    return False
+
             expected_stream_count = expected.get('expected_stream_count')
             if expected_stream_count is not None and len(stream_ids) != expected_stream_count:
                 print(f"  FAIL ✗ Found {len(stream_ids)} distinct stream(s) {sorted(stream_ids)}, expected {expected_stream_count}")
@@ -169,30 +176,29 @@ def read_metric_metadata(pp_dir):
     return types, streams
 
 
-def get_test_window_ms(test_dir, cwd=None):
-    """Return (begin_ms, end_ms) parsed from BEGIN-TS/END-TS.
+def read_postprocess_periods(pp_dir):
+    """Return period names in post-process-data.json order."""
+    data_file = pp_dir / "post-process-data.json"
+    with open(data_file) as f:
+        data = json.load(f)
+    return [period["name"] for period in data["periods"]]
 
-    In hunting mode the post-processor selects one run and writes its
-    BEGIN-TS/END-TS to hunt-temp-result.txt in the working dir; that (not the
-    first run in the raw result) is the window the published sample uses. Prefer
-    it when present, otherwise fall back to the client result file - the file
-    iperf-post-process.py reads timestamps from in non-hunting mode."""
-    client_file = None
-    if cwd is not None:
-        hunt_file = Path(cwd) / "hunt-temp-result.txt"
-        if hunt_file.exists():
-            client_file = hunt_file
-    if client_file is None:
-        client_file = test_dir / "iperf-client-result.txt"
+
+def get_test_window_ms(test_dir, cwd=None):
+    """Return the min/max timestamp window across all client trials."""
+    client_file = test_dir / "iperf-client-result.txt"
     if not client_file.exists():
         return None
-    begin_ts = end_ts = None
+    begin_ts = None
+    end_ts = None
     with open(client_file) as f:
         for line in f:
-            if begin_ts is None and "BEGIN-TS" in line:
-                begin_ts = float(line.split()[1])
-            elif end_ts is None and "END-TS" in line:
-                end_ts = float(line.split()[1])
+            if "BEGIN-TS" in line:
+                value = float(line.split()[1])
+                begin_ts = value if begin_ts is None else min(begin_ts, value)
+            elif "END-TS" in line:
+                value = float(line.split()[1])
+                end_ts = value if end_ts is None else max(end_ts, value)
     if begin_ts is None or end_ts is None:
         return None
     return begin_ts * 1000, end_ts * 1000
