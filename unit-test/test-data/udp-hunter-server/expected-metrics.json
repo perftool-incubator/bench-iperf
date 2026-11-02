@@ -1,0 +1,8 @@
+{
+  "protocol": "udp",
+  "role": "server",
+  "hunter": true,
+  "expected_metrics": ["rx-Gbps", "rx-lost/sec", "rx-pps"],
+  "expected_periods": ["hunt-trial-1", "hunt-trial-2", "measurement", "hunt-trial-4"],
+  "description": "UDP hunter server mode without --bitrate-range preserves every trial and aligns server tests to client trial timestamps"
+}

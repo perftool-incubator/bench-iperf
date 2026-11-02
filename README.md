@@ -78,7 +78,8 @@ fixed `--bitrate`) plus a `--max-loss-pct` limit:
 > already reach only the client — the explicit `"role": "client"` above just makes
 > that intent clear. Do **not** give them `"role": "all"`: the server's option
 > parser doesn't know them and would abort. (`bitrate-range` is `role: all`
-> because the server does read it.)
+> because the server runtime reads it, although post-processing can also detect
+> a hunt from multiple client trial markers.)
 
 #### How it works: two phases
 
@@ -105,9 +106,16 @@ Result lines are marked so the post-processor can tell the two phases apart:
 | `PASS:`       | confirm | full-duration run under the loss limit |
 | `FAIL:`       | confirm | full-duration run over the loss limit |
 
-The post-processor selects the **highest-bitrate `PASS`** as the winner. Probe
-lines deliberately avoid the substring `PASS`, so they are never selected — only
-full-duration confirm runs can win.
+The post-processor selects the **highest-bitrate `PASS`** as the winner, using
+the later trial when measured bitrates tie. Probe lines deliberately avoid the
+substring `PASS`, so they are never selected — only full-duration confirm runs
+can win.
+
+Every sequential hunt trial remains available as a CDM period. The selected trial
+is named `measurement`; other trials are named `hunt-trial-N`. Client and server
+trials are paired by trial/test number and use the client's `BEGIN-TS-N` and
+`END-TS-N` timestamps, so benchmark metrics can be correlated with system metrics
+collected during any hunt trial.
 
 If **no** confirm run passes (every full-duration confirm exceeds
 `--max-loss-pct`), the post-processor **fails the sample** rather than publishing
