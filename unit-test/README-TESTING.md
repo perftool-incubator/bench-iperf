@@ -1,5 +1,12 @@
 # iperf Post-Processor Testing
 
+The CPU pinning tests use fake sysfs data and a toolbox checkout with the
+L3 selector. Run them without a virtual environment:
+
+```bash
+TOOLBOX_HOME=/path/to/toolbox python3 -m unittest discover -s unit-test -p test_cpu_pin.py -v
+```
+
 ## Setup
 
 First-time setup - create the Python virtual environment:

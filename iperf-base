@@ -2,6 +2,59 @@
 
 if ! source ${TOOLBOX_HOME}/bash/library/bench-base; then echo "ERROR: Could not source bench-base from \$TOOLBOX_HOME [${TOOLBOX_HOME}]"; exit 1; fi
 
+# Parse cpu-pin identically on client and server. A single L3 number is a
+# count; a domain number requires the second colon, even without a count.
+function iperf_parse_cpu_pin {
+    local value="$1"
+    cpu_pin="$value"
+    cpu_pin_param=""
+    l3_domain=""
+    l3_count=""
+    if [[ "$value" =~ ^[lL]3$ ]]; then
+        cpu_pin="l3"
+    elif [[ "$value" =~ ^[lL]3:([1-9][0-9]*)$ ]]; then
+        cpu_pin="l3"
+        l3_count="${BASH_REMATCH[1]}"
+    elif [[ "$value" =~ ^[lL]3:([0-9]*):([1-9][0-9]*)?$ ]]; then
+        l3_domain="${BASH_REMATCH[1]}"
+        l3_count="${BASH_REMATCH[2]}"
+        [[ -n "$l3_domain" || -n "$l3_count" ]] || return 1
+        cpu_pin="l3"
+    elif [[ "$value" == cpu:* ]]; then
+        cpu_pin_param="${value#cpu:}"
+        cpu_pin="cpu"
+    elif [[ "$value" == cpu-numa:* ]]; then
+        cpu_pin_param="${value#cpu-numa:}"
+        cpu_pin="cpu-numa-n"
+    fi
+    case "$cpu_pin" in
+        ""|numa|cpu-numa|cpu|cpu-numa-n|l3) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Logs go to stderr so the caller captures only the final taskset CPU list.
+function iperf_select_l3_cpus {
+    PYTHONPATH="${TOOLBOX_HOME}/python${PYTHONPATH:+:${PYTHONPATH}}" \
+        python3 - "$1" "$l3_domain" "$l3_count" "${IPERF_SYSFS_SYSTEM_ROOT:-/sys/devices/system}" <<'PY'
+import sys
+
+node, domain, count, root = sys.argv[1:]
+try:
+    from toolbox.system_cpu_topology import select_node_l3_domain
+    print(f"L3 requested domain={domain or 'auto'} count={count or 'all'}", file=sys.stderr)
+    selected, cpus = select_node_l3_domain(
+        int(node), int(domain) if domain else None, int(count) if count else None,
+        sysfs_root=root, log=lambda message: print(message, file=sys.stderr))
+    pool = ','.join(map(str, cpus))
+    print(f"selected L3 domain {selected}; final pin list: {pool}", file=sys.stderr)
+    print(pool)
+except (ImportError, OSError, ValueError) as error:
+    print(f"ERROR: L3 CPU pinning: {error}", file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 function iperf_get_passthru_time {
     local passthru
     local value=""

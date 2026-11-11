@@ -336,10 +336,16 @@ Pin iperf processes and NIC interrupts to specific CPUs for consistent performan
 - `numa` / `cpu-numa` - pin to the interface's whole NUMA-node CPU pool (or a single CPU, respectively)
 - `cpu-numa:<N>` - auto-pick `N` CPUs from the interface's NUMA node, clamped (with a warning) if the node has fewer than `N`
 - `cpu:<list>` - an explicit CPU list/range (e.g. `cpu:4-7` or `cpu:4,5,6,7`)
+- `l3` / `L3` - use all online CPUs in one L3 cache domain on the backing interface's NUMA node
+- `l3:<N>` or `l3::<N>` - use the first `N` online CPUs in an automatically selected domain; a single number means a CPU count
+- `l3:<D>:` - use all online CPUs in domain `D` (the trailing colon is required)
+- `l3:<D>:<N>` - use the first `N` online CPUs in domain `D`
+
+All forms also accept uppercase `L3`. Domains are numbered from zero within the interface's NUMA node, sorted by their lowest online CPU ID. For example, `l3:0:` chooses the first domain and `l3:1:8` chooses eight CPUs from the second. Automatic selection chooses the largest domain that can supply the requested count, breaking ties by lowest CPU ID. An invalid domain, unavailable topology, or insufficient CPU count is an error. A device reporting NUMA node `-1` uses node 0 if available. These modes constrain the process to one NUMA-aware cache domain; they do not infer PCIe-slot-to-cache affinity.
 
 CPU pinning:
 - Pins the whole iperf3 process (all `nthreads` streams share the pool - iperf3 has no native per-thread CPU affinity, see [esnet/iperf#1738](https://github.com/esnet/iperf/issues/1738))
-- Pins NIC IRQs to the same CPU set for NUMA locality
+- With `num-peers`, IRQ pinning uses the container cpuset independently of `cpu-pin`; IRQs can run outside the selected L3 domain or process CPU pool
 - Reduces jitter and improves measurement consistency
 
 ### Multiple Streams (nthreads)
