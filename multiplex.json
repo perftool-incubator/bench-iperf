@@ -50,7 +50,7 @@
 	    "cpu-pinning": {
 	        "description": "valid cpu pinning modes",
 	        "args": [ "cpu-pin" ],
-	        "vals": "^numa$|^cpu-numa$|^cpu-numa:[1-9][0-9]*$|^cpu:(([0-9]*)(-[1-9][0-9]*)?)(,(([1-9][0-9]*)(-[1-9][0-9]*)?))*$"
+	        "vals": "^numa$|^cpu-numa$|^cpu-numa:[1-9][0-9]*$|^cpu:(([0-9]*)(-[1-9][0-9]*)?)(,(([1-9][0-9]*)(-[1-9][0-9]*)?))*$|^[lL]3$|^[lL]3:[1-9][0-9]*$|^[lL]3:[0-9]+:([1-9][0-9]*)?$|^[lL]3::[1-9][0-9]*$"
 	    },
         "size_KMG_range" : {
             "description" : "a range of size_KMG",
