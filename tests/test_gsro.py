@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import lzma
 import os
 from pathlib import Path
 import re
@@ -349,8 +350,12 @@ class GsroPrevalidationTests(unittest.TestCase):
             run_directory = base / "run"
             config_directory.mkdir()
             run_directory.mkdir()
-            (config_directory / "rickshaw-run.json").write_text(
-                json.dumps(
+            with lzma.open(
+                config_directory / "rickshaw-run.json.xz",
+                mode="wt",
+                encoding="utf-8",
+            ) as config_file:
+                json.dump(
                     {
                         "iterations": [
                             {
@@ -360,9 +365,8 @@ class GsroPrevalidationTests(unittest.TestCase):
                                 ]
                             }
                         ]
-                    }
-                ),
-                encoding="utf-8",
+                },
+                config_file,
             )
             result = subprocess.run(
                 [sys.executable, str(VALIDATOR_PATH)],

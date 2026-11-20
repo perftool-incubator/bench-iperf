@@ -4,16 +4,36 @@
 
 import argparse
 import json
+import lzma
 from pathlib import Path
 import re
 import sys
 
 
 RUN_CONFIG_CANDIDATES = (
+    Path("config/rickshaw-run.json.xz"),
     Path("config/rickshaw-run.json"),
+    Path("../config/rickshaw-run.json.xz"),
     Path("../config/rickshaw-run.json"),
+    Path("rickshaw-run.json.xz"),
     Path("rickshaw-run.json"),
 )
+
+
+def run_config_candidates(run_dir=None):
+    if run_dir is None:
+        return RUN_CONFIG_CANDIDATES
+    config_directory = Path(run_dir).resolve().parent / "config"
+    return (
+        config_directory / "rickshaw-run.json.xz",
+        config_directory / "rickshaw-run.json",
+    )
+
+
+def open_run_config(run_config):
+    if run_config.suffix == ".xz":
+        return lzma.open(run_config, mode="rt", encoding="utf-8")
+    return run_config.open(encoding="utf-8")
 
 
 def parameter_values(parameter):
@@ -165,15 +185,13 @@ def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--run-dir")
     arguments, _ = parser.parse_known_args()
-    if arguments.run_dir:
-        run_config = (Path(arguments.run_dir) / ".." / "config" / "rickshaw-run.json").resolve()
-    else:
-        run_config = next(
-            (candidate for candidate in RUN_CONFIG_CANDIDATES if candidate.is_file()),
-            RUN_CONFIG_CANDIDATES[0],
-        )
+    candidates = run_config_candidates(arguments.run_dir)
+    run_config = next(
+        (candidate for candidate in candidates if candidate.is_file()),
+        candidates[0],
+    )
     try:
-        with run_config.open(encoding="utf-8") as config_file:
+        with open_run_config(run_config) as config_file:
             run = json.load(config_file)
     except (OSError, json.JSONDecodeError) as error:
         print(f"ERROR: could not read {run_config}: {error}", file=sys.stderr)
