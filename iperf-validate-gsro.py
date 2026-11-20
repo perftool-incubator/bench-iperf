@@ -2,6 +2,7 @@
 # -*- mode: python; indent-tabs-mode: nil; python-indent-level: 4 -*-
 # vim: autoindent tabstop=4 shiftwidth=4 expandtab softtabstop=4 filetype=python
 
+import argparse
 import json
 from pathlib import Path
 import re
@@ -161,10 +162,16 @@ def validate_run(run):
 
 
 def main():
-    run_config = next(
-        (candidate for candidate in RUN_CONFIG_CANDIDATES if candidate.is_file()),
-        RUN_CONFIG_CANDIDATES[0],
-    )
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--run-dir")
+    arguments, _ = parser.parse_known_args()
+    if arguments.run_dir:
+        run_config = (Path(arguments.run_dir) / ".." / "config" / "rickshaw-run.json").resolve()
+    else:
+        run_config = next(
+            (candidate for candidate in RUN_CONFIG_CANDIDATES if candidate.is_file()),
+            RUN_CONFIG_CANDIDATES[0],
+        )
     try:
         with run_config.open(encoding="utf-8") as config_file:
             run = json.load(config_file)

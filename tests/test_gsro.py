@@ -382,10 +382,26 @@ class GsroPrevalidationTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("server ignores", result.stdout)
 
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(VALIDATOR_PATH),
+                    "--run-dir",
+                    str(run_directory),
+                    "--protocol=tcp",
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("server ignores", result.stdout)
+
     def test_validator_is_registered_and_executable(self):
         config = json.loads((REPO_ROOT / "rickshaw.json").read_text(encoding="utf-8"))
         self.assertEqual(
-            config["controller"]["pre-script"], "%bench-dir%/iperf-validate-gsro.py"
+            config["controller"]["pre-script"],
+            "%bench-dir%/iperf-validate-gsro.py --run-dir %run-dir%",
         )
         self.assertTrue(os.access(VALIDATOR_PATH, os.X_OK))
 
