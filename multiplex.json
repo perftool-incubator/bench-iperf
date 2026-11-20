@@ -12,6 +12,11 @@
             "args": [ "protocol" ],
             "vals": "^tcp$|^udp$"
         },
+        "gsro": {
+            "description": "UDP GSO/GRO support",
+            "args": [ "gsro" ],
+            "vals": "^true$|^false$"
+        },
         "ipv": {
             "description": "ipv4 or ipv6",
             "args": [ "ipv" ],

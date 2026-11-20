@@ -13,6 +13,7 @@ ifname=""
 protocol=""
 length=""
 time=10
+gsro=false
 hunt_probe_time=8
 # K=1 by default: a single full-duration confirm. K>1 (bidirectional reclaim)
 # is only useful when hunting a sharp, real loss cliff AND is unsafe for
@@ -36,7 +37,7 @@ num_peers=0
 nthreads=1
 
 echo "opts before: $@"
-longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:,num-peers:,nthreads:,hunt-probe-time:,hunt-confirm-attempts:"
+longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:,num-peers:,nthreads:,hunt-probe-time:,hunt-confirm-attempts:,gsro:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error "Unrecognized option specified"
@@ -101,6 +102,12 @@ while true; do
             echo "time=$time"
             shift
             ;;
+        --gsro)
+            shift;
+            gsro=$1
+            echo "gsro=$gsro"
+            shift
+            ;;
         --passthru)     # iperf options that user wants passthru
             shift;
             pt_opts=$1
@@ -153,6 +160,19 @@ while true; do
             exit_error "Invalid option: $1"
     esac
 done
+
+if [ "$gsro" != "true" ] && [ "$gsro" != "false" ]; then
+    exit_error "invalid gsro value '${gsro}': expected true or false"
+fi
+if [ "$gsro" == "true" ]; then
+    if [ "$protocol" != "--udp" ]; then
+        exit_error "gsro=true requires protocol=udp"
+    fi
+    iperf_version=$(iperf3 --version 2>&1) || exit_error "could not run iperf3 --version"
+    if [[ "$iperf_version" != *"GSO/GRO support"* ]]; then
+        exit_error "iperf3 does not advertise GSO/GRO support"
+    fi
+fi
 
 # IRQ pinning if num_peers is specified
 if [ "$num_peers" -gt 0 ]; then
@@ -320,6 +340,9 @@ case "${cpu_pin}" in
 esac
 
 options="--format k -c $remotehost -p $control_port $protocol $length"
+if [ "$gsro" == "true" ]; then
+    options+=" --gsro"
+fi
 if [ "$omit" -ne 0 ]; then
     options+=" --omit $omit"
 fi

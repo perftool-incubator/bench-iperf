@@ -12,6 +12,7 @@ See the [crucible-examples iperf documentation](https://github.com/perftool-incu
 - **IRQ/CPU pinning** - Pin iperf engine and NIC interrupts to specific CPUs for consistent performance
 - **Hunter mode** - Automatically find the max bitrate under a loss threshold with `--bitrate-range` (fast short-probe search + full-duration confirm)
 - **Protocol support** - TCP and UDP with automatic detection in post-processing
+- **UDP offload support** - Enable UDP GSO/GRO with the client-only `gsro` parameter
 - **Comprehensive metrics** - tx-Gbps, rx-Gbps, tx-retry/sec, rx-lost/sec, rx-pps
 
 ## Crucible run-file networking
@@ -50,6 +51,27 @@ Minimal parameter example:
 ```
 
 ## Configuration
+
+### UDP GSO/GRO
+
+Set `gsro=true` to pass `--gsro` to the `iperf3` client and enable UDP GSO/GRO:
+
+```json
+{
+  "params": [
+    { "arg": "protocol", "vals": ["udp"], "role": "client" },
+    { "arg": "gsro", "vals": ["true"], "role": "client" },
+    { "arg": "time", "vals": ["30"], "role": "client" }
+  ]
+}
+```
+
+`gsro` accepts `true` or `false` and defaults to `false`. It requires
+`protocol=udp`. Prefer `role: "client"`; `role: "all"` is also accepted, but
+the server discards the option and the client negotiates GSO/GRO through the
+iperf3 control connection. A run with `role: "server"` is rejected before
+engines are deployed. The client also checks that `iperf3 --version` advertises
+`GSO/GRO support`.
 
 ### Bidirectional Mode
 
