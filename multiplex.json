@@ -19,7 +19,7 @@
         },
         "positive_integer": {
             "description": "a whole number greater than 0",
-            "args": [ "length", "time", "omit", "num-peers", "nthreads", "hunt-probe-time", "hunt-confirm-attempts" ],
+            "args": [ "length", "time", "omit", "num-peers", "nthreads", "hunt-probe-time", "hunt-confirm-attempts", "udp-fanout", "rx-affinity" ],
             "vals": "[1-9][0-9]*"
         },
         "bitrate": {
@@ -56,6 +56,16 @@
             "description" : "a range of size_KMG",
             "args" : [ "bitrate-range" ],
             "vals" : "[0-9]*[KMG]\\-[0-9]*[KMG]"
+        },
+        "fanout_affinity": {
+            "description": "comma-separated list of CPU numbers for fan-out workers",
+            "args": [ "fanout-affinity" ],
+            "vals": "^(([0-9]*)(-[1-9][0-9]*)?)(,(([0-9]*)(-[1-9][0-9]*)?))*$"
+        },
+        "boolean_flags": {
+            "description": "boolean flags (gso, gro)",
+            "args": [ "gso", "gro" ],
+            "vals": "^$"
         }
     }
 }
