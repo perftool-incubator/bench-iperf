@@ -342,7 +342,7 @@ class GsroPrevalidationTests(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("iteration 2", errors[0])
 
-    def test_script_reads_run_config_relative_to_rickshaw_run_directory(self):
+    def test_script_reads_run_config_from_rickshaw_run_directory(self):
         with tempfile.TemporaryDirectory(prefix="iperf-gsro-config-") as temporary:
             base = Path(temporary)
             config_directory = base / "config"
@@ -367,6 +367,15 @@ class GsroPrevalidationTests(unittest.TestCase):
             result = subprocess.run(
                 [sys.executable, str(VALIDATOR_PATH)],
                 cwd=run_directory,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("server ignores", result.stdout)
+
+            result = subprocess.run(
+                [sys.executable, str(VALIDATOR_PATH)],
+                cwd=base,
                 capture_output=True,
                 text=True,
             )

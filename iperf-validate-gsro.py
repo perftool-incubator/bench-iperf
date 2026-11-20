@@ -8,7 +8,11 @@ import re
 import sys
 
 
-RUN_CONFIG = Path("../config/rickshaw-run.json")
+RUN_CONFIG_CANDIDATES = (
+    Path("config/rickshaw-run.json"),
+    Path("../config/rickshaw-run.json"),
+    Path("rickshaw-run.json"),
+)
 
 
 def parameter_values(parameter):
@@ -157,11 +161,15 @@ def validate_run(run):
 
 
 def main():
+    run_config = next(
+        (candidate for candidate in RUN_CONFIG_CANDIDATES if candidate.is_file()),
+        RUN_CONFIG_CANDIDATES[0],
+    )
     try:
-        with RUN_CONFIG.open(encoding="utf-8") as config_file:
+        with run_config.open(encoding="utf-8") as config_file:
             run = json.load(config_file)
     except (OSError, json.JSONDecodeError) as error:
-        print(f"ERROR: could not read {RUN_CONFIG}: {error}", file=sys.stderr)
+        print(f"ERROR: could not read {run_config}: {error}", file=sys.stderr)
         return 2
 
     errors, messages = validate_run(run)
