@@ -34,9 +34,13 @@ max_loss_pct=0
 omit=0
 num_peers=0
 nthreads=1
+udp_fanout=""
+fanout_affinity=""
+gso=""
+gro=""
 
 echo "opts before: $@"
-longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:,num-peers:,nthreads:,hunt-probe-time:,hunt-confirm-attempts:"
+longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:,num-peers:,nthreads:,hunt-probe-time:,hunt-confirm-attempts:,udp-fanout:,fanout-affinity:,gso,gro"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error "Unrecognized option specified"
@@ -143,6 +147,28 @@ while true; do
             shift;
             hunt_confirm_attempts=$1
             echo "hunt-confirm-attempts=$hunt_confirm_attempts"
+            shift
+            ;;
+        --udp-fanout)
+            shift;
+            udp_fanout=$1
+            echo "udp-fanout=$udp_fanout"
+            shift
+            ;;
+        --fanout-affinity)
+            shift;
+            fanout_affinity=$1
+            echo "fanout-affinity=$fanout_affinity"
+            shift
+            ;;
+        --gso)
+            gso="--gso"
+            echo "gso enabled"
+            shift
+            ;;
+        --gro)
+            gro="--gro"
+            echo "gro enabled"
             shift
             ;;
         --)
@@ -326,9 +352,21 @@ fi
 if [ "$nthreads" -gt 1 ]; then
     options+=" --parallel $nthreads"
 fi
+if [ -n "$udp_fanout" ]; then
+    options+=" --udp-fanout $udp_fanout"
+fi
+if [ -n "$fanout_affinity" ]; then
+    options+=" --fanout-affinity $fanout_affinity"
+fi
+if [ -n "$gso" ]; then
+    options+=" $gso"
+fi
+if [ -n "$gro" ]; then
+    options+=" $gro"
+fi
 
 #options+=" --cport $data_port"
-# strip ',' from the passthru options 
+# strip ',' from the passthru options
 passthru_opts=$(echo "$pt_opts" | sed 's/,/ /g')
 
 options+=" $passthru_opts"
