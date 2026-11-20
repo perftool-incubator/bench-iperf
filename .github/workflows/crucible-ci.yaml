@@ -33,7 +33,7 @@ jobs:
         run: echo '${{ toJSON(steps.filter.outputs) }}' | jq .
 
   call-real-benchmark-crucible-ci:
-    needs: changes
+    needs: [ changes, call-unittest ]
     if: ${{ github.event.pull_request.head.repo.fork != true && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true') }}
     uses: perftool-incubator/crucible-ci/.github/workflows/benchmark-crucible-ci.yaml@main
     with:
@@ -49,8 +49,13 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.fork != true && github.event_name != 'workflow_dispatch' && needs.changes.outputs.only-docs == 'true' }}
     uses: perftool-incubator/crucible-ci/.github/workflows/faux-benchmark-crucible-ci.yaml@main
 
+  call-unittest:
+    needs: changes
+    if: ${{ github.event.pull_request.head.repo.fork != true && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.only-docs != 'true') }}
+    uses: ./.github/workflows/unittest.yaml
+
   crucible-ci-complete:
-    needs: [ call-real-benchmark-crucible-ci, call-faux-benchmark-crucible-ci ]
+    needs: [ call-unittest, call-real-benchmark-crucible-ci, call-faux-benchmark-crucible-ci ]
     if: always()
     runs-on: ubuntu-latest
     steps:

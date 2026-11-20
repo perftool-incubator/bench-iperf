@@ -18,8 +18,9 @@ num_peers=0
 protocol=""
 bitrate_range=
 omit=0
+gsro=false
 
-longopts="ipv:,ifname:,cpu-pin:,bitrate:,passthru:,num-peers:,protocol:,bitrate-range:,omit:,nthreads:"
+longopts="ipv:,ifname:,cpu-pin:,bitrate:,passthru:,num-peers:,protocol:,bitrate-range:,omit:,nthreads:,gsro:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error  "Unrecognized option specified"
@@ -86,6 +87,12 @@ while true; do
             echo "omit=$omit"
             shift
             ;;
+        --gsro)
+            shift;
+            gsro=$1
+            echo "gsro=$gsro (server ignores it; the client negotiates GSO/GRO through the control connection)"
+            shift
+            ;;
         --)
             shift;
             break
@@ -94,6 +101,10 @@ while true; do
             exit_error "Invalid option: $1"
     esac
 done
+
+if [ "$gsro" != "true" ] && [ "$gsro" != "false" ]; then
+    exit_error "invalid gsro value '${gsro}': expected true or false"
+fi
 
 # IRQ pinning if num_peers is specified
 if [ "$num_peers" -gt 0 ]; then
