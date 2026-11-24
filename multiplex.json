@@ -65,7 +65,7 @@
         "boolean_flags": {
             "description": "boolean flags (gso, gro)",
             "args": [ "gso", "gro" ],
-            "vals": "^$"
+            "vals": "^true$|^false$"
         }
     }
 }

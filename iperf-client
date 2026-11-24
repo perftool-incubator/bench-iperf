@@ -40,7 +40,7 @@ gso=""
 gro=""
 
 echo "opts before: $@"
-longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:,num-peers:,nthreads:,hunt-probe-time:,hunt-confirm-attempts:,udp-fanout:,fanout-affinity:,gso,gro"
+longopts="ipv:,ifname:,protocol:,length:,remotehost:,time:,bitrate:,cpu-pin:,passthru:,bitrate-range:,max-loss-pct:,omit:,num-peers:,nthreads:,hunt-probe-time:,hunt-confirm-attempts:,udp-fanout:,fanout-affinity:,gso:,gro:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error "Unrecognized option specified"
@@ -162,13 +162,15 @@ while true; do
             shift
             ;;
         --gso)
-            gso="--gso"
-            echo "gso enabled"
+            shift;
+            if [ "$1" = "true" ]; then gso="--gso"; fi
+            echo "gso=$1"
             shift
             ;;
         --gro)
-            gro="--gro"
-            echo "gro enabled"
+            shift;
+            if [ "$1" = "true" ]; then gro="--gro"; fi
+            echo "gro=$1"
             shift
             ;;
         --)

@@ -21,7 +21,7 @@ omit=0
 rx_affinity=""
 gro=""
 
-longopts="ipv:,ifname:,cpu-pin:,bitrate:,passthru:,num-peers:,protocol:,bitrate-range:,omit:,nthreads:,rx-affinity:,gro"
+longopts="ipv:,ifname:,cpu-pin:,bitrate:,passthru:,num-peers:,protocol:,bitrate-range:,omit:,nthreads:,rx-affinity:,gro:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error  "Unrecognized option specified"
@@ -95,8 +95,9 @@ while true; do
             shift
             ;;
         --gro)
-            gro="--gro"
-            echo "gro enabled"
+            shift;
+            if [ "$1" = "true" ]; then gro="--gro"; fi
+            echo "gro=$1"
             shift
             ;;
         --)
