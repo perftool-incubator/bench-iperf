@@ -18,8 +18,10 @@ num_peers=0
 protocol=""
 bitrate_range=
 omit=0
+rx_affinity=""
+gro=""
 
-longopts="ipv:,ifname:,cpu-pin:,bitrate:,passthru:,num-peers:,protocol:,bitrate-range:,omit:,nthreads:"
+longopts="ipv:,ifname:,cpu-pin:,bitrate:,passthru:,num-peers:,protocol:,bitrate-range:,omit:,nthreads:,rx-affinity:,gro:"
 opts=$(getopt -q -o "" --longoptions "$longopts" -n "getopt.sh" -- "$@");
 if [ $? -ne 0 ]; then
     exit_error  "Unrecognized option specified"
@@ -84,6 +86,18 @@ while true; do
             shift;
             omit=$1
             echo "omit=$omit"
+            shift
+            ;;
+        --rx-affinity)
+            shift;
+            rx_affinity=$1
+            echo "rx-affinity=$rx_affinity"
+            shift
+            ;;
+        --gro)
+            shift;
+            if [ "$1" = "true" ]; then gro="--gro"; fi
+            echo "gro=$1"
             shift
             ;;
         --)
@@ -302,6 +316,12 @@ esac
 
 passthru_opts=$(echo "$pt_opts" | sed 's/,/ /g')
 cmd="${cpu_pin_cmd} iperf3 -s --format k -p $control_port $passthru_opts"
+if [ -n "$rx_affinity" ]; then
+    cmd+=" --rx-affinity $rx_affinity"
+fi
+if [ -n "$gro" ]; then
+    cmd+=" $gro"
+fi
 if [ "$ipv" == "6" ]; then
     cmd+=" -6"
 fi
